@@ -1,8 +1,6 @@
-// Oscilloscope: the raw waveform drawn as a glowing line, with fading trails
-// of the previous few traces. Each trace starts at a rising zero-crossing so
-// the picture holds still on steady tones instead of scrolling. Colours come
-// from the current palette and drift faster when the music is loud, and beats
-// flash the trace brighter and whiter.
+// Oscilloscope: the raw waveform as a glowing trail with fading echoes of
+// recent frames, triggered on a rising zero-crossing so it holds still.
+// Colours drift with loudness and flash white on beats.
 
 #include "../core/Visualizer.h"
 
@@ -25,7 +23,6 @@ class Oscilloscope : public Visualizer {
 
     drawAxis(display);
 
-    // Age the trails, then record the newest trace in slot 0.
     memmove(trails_[1], trails_[0], sizeof(trails_[0]) * (kTrails - 1));
     const int start = findTrigger(audio.waveform);
     const float mid = (PANEL_HEIGHT - 1) / 2.0f;

@@ -1,16 +1,7 @@
-// Twin analog VU meters, since the input is mono: the panel is split into two
-// 32x32 quadrants, each a classic swinging-needle gauge with a scale arc,
-// tick marks, a red zone at the top of the scale and a peak-hold lamp.
-//
-// LEFT gauge is driven by audio.bass (the low end); RIGHT gauge by the
-// average of the top half of audio.bands (the high end). Each needle snaps
-// towards its target fast (attack) but eases back slowly (release), and
-// springs a little past its target before settling, like a real meter's
-// mechanical inertia. The arc itself is coloured green -> yellow -> red along
-// the scale (levelColor), so "in the red zone" always means visually red;
-// the needle stays plain white so it reads clearly against the coloured arc.
-// Each gauge's peak lamp glows red while its needle sits in the red zone and
-// flashes towards white on every detected beat.
+// Twin analog VU meters (input is mono, so left = bass, right = treble):
+// needle gauges over a green-yellow-red arc. Needles snap up and spring back
+// with slight overshoot; the white needle reads against the coloured arc, and
+// the peak lamp glows in the red zone and flashes on beats.
 
 #include <math.h>
 
@@ -69,7 +60,7 @@ class VuMeter : public Visualizer {
     const int cx = (xMin + xMax) / 2;
     const int py = PANEL_HEIGHT - 1;  // pivot sits on the bottom row
 
-    // Scale arc + tick marks: green -> yellow -> red, matching the VU scale.
+    // Scale arc and tick marks.
     for (int d = -kSweepDeg; d <= kSweepDeg; d += 2) {
       float t = (float)(d + kSweepDeg) / (2 * kSweepDeg);  // 0..1 along the scale
       float rad = d * kDegToRad;
@@ -87,15 +78,12 @@ class VuMeter : public Visualizer {
       }
     }
 
-    // Needle: plain white, pivoting from the bottom-centre of this half.
     float angleDeg = (pos - 0.5f) * 2.0f * kSweepDeg;
     float rad = angleDeg * kDegToRad;
     int nx = cx + (int)((kRadius - 2) * sinf(rad));
     int ny = py - (int)((kRadius - 2) * cosf(rad));
     display.drawLine(cx, py, nx, ny, rgb565(255, 255, 255));
 
-    // Peak-hold lamp above the apex of the arc: fast on, slow off while in
-    // the red zone, plus a brief white flash whenever a beat lands.
     ch.redLamp += redZone ? (1.0f - ch.redLamp) * 0.6f : -0.05f;
     ch.redLamp = clamp01(ch.redLamp);
     ch.flashLamp = beat ? 1.0f : ch.flashLamp * 0.75f;

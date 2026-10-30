@@ -1,12 +1,6 @@
-// Spectrum analyser: one bar per column, with peak markers that fall back
-// slowly.
-//
-// Colours come from the current palette (serial `k`): it spreads across the
-// columns and slowly scrolls (faster when the music is loud), and each bar
-// also shifts along the palette from base to tip. Bars glow brighter towards
-// their tips, and tall bars burn towards white at the top. Bass hits flash
-// the bars brighter, jolt the palette along and throw sparks above the
-// tallest bars.
+// Spectrum bars: one glowing bar per column with falling peak dots, coloured
+// from the palette. Bars rise fast and fall slow with the music; bass hits
+// flash them brighter and throw sparks.
 
 #include "../core/Visualizer.h"
 

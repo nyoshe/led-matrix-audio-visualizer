@@ -1,9 +1,8 @@
 #pragma once
 
-// Colour palettes shared by visualizers. Each palette is a looping gradient,
-// so a visualizer can scroll through it (t wraps around 0..1) without a seam.
-// The current palette is switched over serial (`k`) and remembered across
-// reboots.
+// Colour palettes shared by visualizers: looping gradients a visualizer can
+// scroll through (t wraps 0..1) seamlessly. Switched over serial (`k`), saved
+// across reboots.
 
 #include <stddef.h>
 #include <stdint.h>

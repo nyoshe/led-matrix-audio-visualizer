@@ -1,7 +1,6 @@
-// Demoscene-style fire. Each column is fed heat from the bottom by its
-// frequency band, so loud bands burn tall. Every frame the heat rises one row,
-// spreading sideways and cooling as it goes, which turns the raw spectrum into
-// flickering flames. Beats send a flare across the whole base.
+// Demoscene-style fire: each column is fed heat from the bottom by its
+// frequency band, so loud bands burn tall. Beats send a flare across the
+// whole base.
 
 #include "../core/Visualizer.h"
 
@@ -26,7 +25,6 @@ class Fire : public Visualizer {
   void draw(const AudioFrame& audio, Display& display) override {
     if (audio.beat) flare_ = 1.0f;
 
-    // Feed the bottom row from each column's band, with some random flicker.
     // The power below 1 lets quieter bands still raise a small flame.
     uint8_t* base = heat_[PANEL_HEIGHT - 1];
     for (int x = 0; x < PANEL_WIDTH; x++) {
@@ -35,9 +33,8 @@ class Fire : public Visualizer {
       base[x] = constrain(fuel, 0, 255);
     }
 
-    // Rise: each cell becomes a weighted average of the cells below it, then
-    // loses some heat. Going top-down means every row reads the rows below it
-    // from the previous frame, so heat climbs one row per frame.
+    // Going top-down means every row reads the rows below it from the
+    // previous frame, so heat climbs one row per frame.
     for (int y = 0; y < PANEL_HEIGHT - 1; y++) {
       const uint8_t* below = heat_[y + 1];
       const uint8_t* below2 = heat_[min(y + 2, PANEL_HEIGHT - 1)];

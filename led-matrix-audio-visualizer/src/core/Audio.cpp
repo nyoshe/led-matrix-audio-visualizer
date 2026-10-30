@@ -154,8 +154,6 @@ void setupBands() {
   }
   if (bandStart[NUM_BANDS] > hi) bandStart[NUM_BANDS] = (uint16_t)hi;
 
-  // Treble weighting: boost each band by TREBLE_TILT_DB_PER_OCTAVE for every
-  // octave its centre frequency is above the lowest band's.
   auto centre = [](int i) { return (bandStart[i] + bandStart[i + 1] - 1) * 0.5f; };
   for (int i = 0; i < NUM_BANDS; i++) {
     float octaves = log2f(centre(i) / centre(0));
@@ -163,10 +161,8 @@ void setupBands() {
   }
 }
 
-// Automatic gain control: follows a level in dB with a fast attack and a
-// slower release, so a loud spike only squashes the display briefly. Works in
-// dB so recovering from a 20 dB spike takes the same time at any volume.
-// Never follows below `floor`, so silence isn't amplified into noise.
+// Works in dB so recovering from a 20 dB spike takes the same time at any
+// volume. Never follows below `floor`, so silence isn't amplified into noise.
 struct GainFollower {
   float floor;
   float levelDb;
@@ -344,7 +340,6 @@ void addAudioSample(float sample) {
   hop[hopFill++] = removeAdcPattern(sample);
   if (hopFill < AUDIO_HOP_SAMPLES) return;
 
-  // Slide the window along by one hop and analyse it.
   memmove(window, window + AUDIO_HOP_SAMPLES, (FFT_SAMPLES - AUDIO_HOP_SAMPLES) * sizeof(float));
   memcpy(window + FFT_SAMPLES - AUDIO_HOP_SAMPLES, hop, AUDIO_HOP_SAMPLES * sizeof(float));
   hopFill = 0;

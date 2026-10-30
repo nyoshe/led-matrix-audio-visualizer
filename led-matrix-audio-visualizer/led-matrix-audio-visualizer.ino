@@ -1,18 +1,8 @@
-// Audio visualizer
-//   ELEGOO ESP-WROOM-32 + Waveshare 64x32 RGB (HUB75) LED matrix
-//   + SparkFun Sound Detector
-//
-// Audio is sampled and analysed in the background on core 0 (src/core/Audio);
-// this loop draws the newest analysed frame at a fixed RENDER_FPS on core 1.
-// Visualizers live in src/visualizers/ and register themselves; see
-// src/core/Visualizer.h for how to add one.
-//
-// Switching visualizers:
-//   - press the board's BOOT button for the next one
-//   - over serial (115200): n = next, p = previous, l = list, 0-9 = select,
-//     d = print audio levels and frame rates, b = print every band (for tuning),
-//     c = calibrate noise (keep it quiet; takes 3 s), x = clear the calibration,
-//     k = next colour palette
+// Audio visualizer: ELEGOO ESP-WROOM-32 + Waveshare 64x32 HUB75 matrix +
+// SparkFun Sound Detector. Audio is sampled/analysed on core 0
+// (src/core/Audio); this loop draws the newest frame at RENDER_FPS on core 1.
+// See README.md for the serial command reference, and src/core/Visualizer.h
+// to add a visualizer.
 
 #include "src/config.h"
 #include "src/core/Audio.h"

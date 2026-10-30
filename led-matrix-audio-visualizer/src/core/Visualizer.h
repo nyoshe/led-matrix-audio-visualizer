@@ -8,11 +8,8 @@
 #include "Matrix.h"
 #include "Palette.h"
 
-// Base class for every visualizer.
-//
-// To add one, create a .cpp file in src/visualizers/, subclass Visualizer and
-// finish the file with REGISTER_VISUALIZER(YourClass, order). Nothing else
-// needs to change: it shows up in the rotation automatically.
+// Base class for every visualizer. To add one, subclass it in a new
+// src/visualizers/*.cpp file ending with REGISTER_VISUALIZER(YourClass, order).
 class Visualizer {
  public:
   virtual ~Visualizer() = default;
@@ -23,10 +20,8 @@ class Visualizer {
   // Called each time this visualizer becomes active; clear any history here.
   virtual void reset() {}
 
-  // Draw one frame; called RENDER_FPS times a second with the newest audio.
-  // The screen has already been cleared to black and is flipped onto the
-  // panel afterwards, so draw the whole picture every time and keep any
-  // persistence (trails, history) in member variables.
+  // Draw one frame at RENDER_FPS; screen is pre-cleared, flipped after. Draw
+  // everything each call -- keep persistence (trails, history) in members.
   virtual void draw(const AudioFrame& audio, Display& display) = 0;
 };
 

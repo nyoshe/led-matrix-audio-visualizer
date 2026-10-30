@@ -1,16 +1,6 @@
-// Kaleidoscope: a single audio-reactive quarter pattern, mirrored four ways
-// to fill the panel.
-//
-// The panel isn't square, so classic 8-fold symmetry won't tile cleanly.
-// Instead the bottom-right corner of a 32x16 quadrant is treated as the
-// mirror pivot -- it lands on the panel's true centre once mirrored -- and
-// every quadrant pixel is coloured by its angle and distance from that
-// pivot. Angle selects a frequency band (so different wedges of the pattern
-// pulse with different parts of the spectrum) and distance shifts the
-// palette position and dims the glow towards the rim. The whole pattern
-// slowly rotates, speeding up with the music's loudness, and each beat jolts
-// the rotation forward, nudges the palette, and flashes everything brighter
-// and whiter near the centre.
+// Kaleidoscope: one audio-reactive quadrant mirrored four ways into a radial
+// pattern. Wedges are coloured by frequency band and distance, rotate faster
+// with loudness, and jolt on beats.
 
 #include <math.h>
 
@@ -52,8 +42,6 @@ class Kaleidoscope : public Visualizer {
       for (int qx = 0; qx < kQuadW; qx++) {
         const int idx = qy * kQuadW + qx;
 
-        // Geometry (angle, distance) was precomputed once in computeTable();
-        // only the rotation offset and a table lookup happen here, no trig.
         const float a = wrap01(angleFrac_[idx] + rotation_);
         int band = (int)(a * NUM_BANDS);
         if (band >= NUM_BANDS) band = NUM_BANDS - 1;
@@ -65,8 +53,9 @@ class Kaleidoscope : public Visualizer {
         float t = paletteOffset_ + a + dist * kDistSpread;
         uint16_t color = paletteColor(t, brightness, white);
 
-        // Mirror the one computed pixel into all four quadrants. The pivot
-        // corner (kQuadW-1, kQuadH-1) maps to the panel's centre.
+        // 64x32 isn't square, so 8-fold symmetry won't tile; mirror 4 ways
+        // instead. The pivot corner (kQuadW-1, kQuadH-1) lands on the panel's
+        // true centre.
         const int xRight = PANEL_WIDTH - 1 - qx;
         const int yBottom = PANEL_HEIGHT - 1 - qy;
         display.drawPixel(qx, qy, color);
@@ -95,8 +84,7 @@ class Kaleidoscope : public Visualizer {
 
   static float wrap01(float t) { return t - floorf(t); }
 
-  // Fills angleFrac_ and distNorm_ once: purely geometric, so it never
-  // changes and the per-frame draw only needs cheap float math.
+  // Purely geometric, so it's filled once here and never changes.
   void computeTable() {
     const float pivotX = (float)(kQuadW - 1);
     const float pivotY = (float)(kQuadH - 1);

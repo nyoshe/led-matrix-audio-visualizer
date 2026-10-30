@@ -1,22 +1,6 @@
-// Retro LED bargraph: the chunky, segmented look of an old car-stereo or
-// mixing-desk level meter, not the smooth continuous bars of Spectrum Bars.
-//
-// The panel is a fixed 16x8 grid of LED "lamps": 16 bar columns across the
-// width, each one 3 lit pixels wide with a 1px gap, and 8 segments stacked
-// in each column, each 3 lit pixels tall with a 1px gap. Every lamp is
-// always drawn, lit or not -- unlit lamps sit on screen as a very dim ghost
-// of their eventual colour, which is what makes the whole grid read as
-// physical hardware rather than bars drawn on a blank background.
-//
-// Each column averages a handful of spectrum bands, bass on the left to
-// treble on the right, and is smoothed with a fast-attack/slow-release
-// filter before being quantised down to a lamp count, so the segments
-// step cleanly instead of flickering. Segments are coloured bottom-to-top
-// green -> yellow -> red, classic VU-meter style -- no rainbow palette
-// here, this one is meant to look like real hardware. A peak-hold lamp
-// sits at the highest point each column has reached recently and drains
-// back down slowly; on a bass hit the peak lamps flash a little whiter,
-// but only subtly -- this visualizer's whole appeal is its austerity.
+// Retro LED bargraph: a 16x8 grid of chunky segmented lamps, lit or dim, like
+// an old car-stereo meter. Each column climbs fast and drains slow with its
+// slice of the spectrum, bass to treble, with a peak-hold lamp.
 
 #include "../core/Visualizer.h"
 
@@ -33,7 +17,6 @@ class LedBargraph : public Visualizer {
     if (audio.beat) flash_ = 1.0f;
 
     for (int b = 0; b < kBars; b++) {
-      // Average this column's slice of bands into one 0..1 magnitude.
       float sum = 0;
       for (int k = 0; k < kBandsPerBar; k++) sum += audio.bands[b * kBandsPerBar + k];
       float target = (sum / kBandsPerBar) * kSegments;  // 0..kSegments, continuous
@@ -43,8 +26,7 @@ class LedBargraph : public Visualizer {
       float alpha = target > bar_[b] ? kAttackAlpha : kReleaseAlpha;
       bar_[b] += alpha * (target - bar_[b]);
 
-      // Peak-hold: snap straight up to the smoothed level, then drain down
-      // slowly of its own accord, never dropping below the current level.
+      // Peak never drops below the current bar.
       if (bar_[b] >= peak_[b]) peak_[b] = bar_[b];
       else peak_[b] = max(peak_[b] - kPeakDecay, bar_[b]);
 
@@ -60,7 +42,6 @@ class LedBargraph : public Visualizer {
 
         uint16_t color;
         if (peakCount > 0 && s == peakCount - 1) {
-          // Peak lamp: full brightness, tinted toward white, more so on a beat.
           color = tint(base, 1.0f, kPeakWhite + (1.0f - kPeakWhite) * flash_);
         } else if (s < lit) {
           color = tint(base, 1.0f, 0.0f);  // lit lamp, full brightness

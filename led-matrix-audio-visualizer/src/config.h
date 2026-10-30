@@ -41,16 +41,12 @@ constexpr int8_t BUTTON = 0;
 }  // namespace Pins
 
 // ---- Audio analysis ---------------------------------------------------------
-// Audio is sampled by the ADC's DMA engine and analysed on core 0, in the
-// background, independently of the screen's frame rate.
-// The ADC runs at SAMPLE_RATE_HZ x ADC_OVERSAMPLE and each group of
-// ADC_OVERSAMPLE readings is averaged into one sample, which lowers random ADC
-// noise (by up to 6 dB at 4x). The DMA ADC accepts 20 kHz to 2 MHz in total
-// across both pins. Each analysis must finish within one hop of samples; `d`
-// prints the timing and the audio task's CPU load.
+// Sampled via the ADC's DMA engine and analysed on core 0, independently of
+// the render loop. Each analysis must finish within one hop; `d` prints the
+// timing and the audio task's CPU load.
 constexpr uint16_t FFT_SAMPLES       = 256;    // window size, power of 2 (12.8 ms at 20 kHz)
-constexpr uint32_t SAMPLE_RATE_HZ    = 20000;  // after averaging; Nyquist 10 kHz, bin 78 Hz
-constexpr uint16_t ADC_OVERSAMPLE    = 4;      // ADC readings averaged per sample (1 = off)
+constexpr uint32_t SAMPLE_RATE_HZ    = 20000;  // after averaging; Nyquist 10 kHz, bin 78 Hz; DMA ADC accepts 20 kHz-2 MHz
+constexpr uint16_t ADC_OVERSAMPLE    = 4;      // averaged per sample; lowers random ADC noise up to 6 dB at 4x (1 = off)
 constexpr uint16_t AUDIO_HOP_SAMPLES = 128;    // analyse every N new samples (156 Hz at 20 kHz)
 constexpr uint16_t FFT_MIN_BIN       = 2;      // skip DC and the lowest rumble (bin 2 = 156 Hz)
 constexpr float    FFT_MAX_HZ        = 10000;  // top of the band layout (capped at Nyquist)
@@ -58,11 +54,8 @@ constexpr int      NUM_BANDS         = 64;     // log-spaced bands in AudioFrame
 
 constexpr float ANALYSIS_RATE_HZ = (float)SAMPLE_RATE_HZ / AUDIO_HOP_SAMPLES;
 
-// Music and most mics get quieter towards the treble (measured here: about
-// 1.6 dB per octave), which leaves the right-hand bars short. AudioFrame::bands
-// are boosted by this much per octave above the lowest band to even that out.
-// 0 = no weighting. Measured on this setup, 2 evens out the low and high
-// thirds of the display on average; 3 makes the treble about twice as tall.
+// Boosts AudioFrame::bands per octave above the lowest band, countering
+// mics' natural roll-off towards treble. 0 = no weighting; tune via `d`.
 constexpr float TREBLE_TILT_DB_PER_OCTAVE = 2.0f;
 
 // Noise calibration (serial `c`, with the mic covered): this many times the

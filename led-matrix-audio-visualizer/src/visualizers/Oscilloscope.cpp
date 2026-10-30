@@ -1,8 +1,8 @@
 // Oscilloscope: the raw waveform drawn as a glowing line, with fading trails
 // of the previous few traces. Each trace starts at a rising zero-crossing so
-// the picture holds still on steady tones instead of scrolling. The colour
-// drifts faster when the music is loud, and beats flash the trace brighter
-// and whiter.
+// the picture holds still on steady tones instead of scrolling. Colours come
+// from the current palette and drift faster when the music is loud, and beats
+// flash the trace brighter and whiter.
 
 #include "../core/Visualizer.h"
 
@@ -14,14 +14,14 @@ class Oscilloscope : public Visualizer {
     for (int t = 0; t < kTrails; t++) {
       for (int x = 0; x < PANEL_WIDTH; x++) trails_[t][x] = PANEL_HEIGHT / 2;
     }
-    hue_ = 0;
+    offset_ = 0;
     flash_ = 0;
   }
 
   void draw(const AudioFrame& audio, Display& display) override {
     if (audio.beat) flash_ = 1.0f;
-    hue_ += 0.003f + audio.level * 0.01f;
-    hue_ -= (int)hue_;
+    offset_ += 0.003f + audio.level * 0.01f;
+    offset_ -= (int)offset_;
 
     drawAxis(display);
 
@@ -39,9 +39,9 @@ class Oscilloscope : public Visualizer {
     for (int t = kTrails - 1; t >= 0; t--) {
       float age = (float)t / kTrails;  // 0 = newest
       float brightness = (1.0f - age) * (0.6f + 0.4f * flash_);
-      float saturation = t == 0 ? 1.0f - 0.7f * flash_ : 1.0f;
+      float white = t == 0 ? 0.7f * flash_ : 0.0f;
       for (int x = 1; x < PANEL_WIDTH; x++) {
-        uint16_t c = hsvColor(hue_ + x * (0.3f / PANEL_WIDTH), saturation, brightness);
+        uint16_t c = paletteColor(offset_ + x * (0.3f / PANEL_WIDTH), brightness, white);
         display.drawLine(x - 1, trails_[t][x - 1], x, trails_[t][x], c);
       }
     }
@@ -69,7 +69,7 @@ class Oscilloscope : public Visualizer {
   }
 
   int8_t trails_[kTrails][PANEL_WIDTH] = {};  // y of each trace, newest first
-  float hue_ = 0;                             // base hue, drifts over time
+  float offset_ = 0;                          // palette position, drifts over time
   float flash_ = 0;                           // 1 on a beat, decays to 0
 };
 

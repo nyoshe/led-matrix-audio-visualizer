@@ -6,6 +6,7 @@
 #include "AudioFrame.h"
 #include "Color.h"
 #include "Matrix.h"
+#include "Palette.h"
 
 // Base class for every visualizer.
 //

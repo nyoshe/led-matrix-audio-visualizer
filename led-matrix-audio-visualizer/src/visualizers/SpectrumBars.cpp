@@ -1,11 +1,12 @@
 // Spectrum analyser: one bar per column, with peak markers that fall back
 // slowly.
 //
-// Each column gets its own hue, so the bars form a rainbow that slowly drifts
-// round the colour wheel (faster when the music is loud). Bars glow brighter
-// towards their tips, and tall bars burn towards white at the top. Bass hits
-// flash the bars brighter, jolt the hue and throw sparks above the tallest
-// bars.
+// Colours come from the current palette (serial `k`): it spreads across the
+// columns and slowly scrolls (faster when the music is loud), and each bar
+// also shifts along the palette from base to tip. Bars glow brighter towards
+// their tips, and tall bars burn towards white at the top. Bass hits flash
+// the bars brighter, jolt the palette along and throw sparks above the
+// tallest bars.
 
 #include "../core/Visualizer.h"
 
@@ -15,17 +16,17 @@ class SpectrumBars : public Visualizer {
 
   void reset() override {
     for (int x = 0; x < PANEL_WIDTH; x++) bar_[x] = peak_[x] = 0;
-    hue_ = 0;
+    offset_ = 0;
     flash_ = 0;
   }
 
   void draw(const AudioFrame& audio, Display& display) override {
     if (audio.beat) {
       flash_ = 1.0f;
-      hue_ += 0.12f;
+      offset_ += 0.12f;
     }
-    hue_ += 0.002f + audio.level * 0.01f;
-    hue_ -= (int)hue_;
+    offset_ += 0.002f + audio.level * 0.01f;
+    offset_ -= (int)offset_;
 
     // Normal frames sit at 55% brightness, leaving headroom for beat flashes.
     const float intensity = 0.55f + 0.45f * flash_;
@@ -44,21 +45,22 @@ class SpectrumBars : public Visualizer {
       else peak_[x] = max(peak_[x] - 0.4f, 0.0f);
       peak_[x] = max(peak_[x], bar_[x]);
 
-      const float hue = hue_ + x * (0.8f / PANEL_WIDTH);
+      const float t = offset_ + x * (kColumnSpread / PANEL_WIDTH);  // palette position
       const float height = bar_[x] / PANEL_HEIGHT;  // 0..1, how tall this bar is
       const int h = (int)bar_[x];
 
       for (int y = 0; y < h; y++) {
         float along = (float)(y + 1) / h;              // 0 at the base, 1 at the tip
         float b = (0.25f + 0.75f * along) * intensity;  // glow towards the tip
-        float s = 1.0f - along * max(height - 0.5f, 0.0f) * 1.6f;  // tall tips burn white
-        display.drawPixel(x, PANEL_HEIGHT - 1 - y, hsvColor(hue, s, b));
+        float white = along * max(height - 0.5f, 0.0f) * 1.6f;  // tall tips burn white
+        display.drawPixel(x, PANEL_HEIGHT - 1 - y, paletteColor(t + along * kHeightSpread, b, white));
       }
 
       int p = min((int)peak_[x], PANEL_HEIGHT);
       if (p > 0) {
         // Peak dots are a pastel of the bar's colour, white during a flash.
-        display.drawPixel(x, PANEL_HEIGHT - p, hsvColor(hue, 0.4f * (1 - flash_), 1.0f));
+        float white = 0.6f + 0.4f * flash_;
+        display.drawPixel(x, PANEL_HEIGHT - p, paletteColor(t + kHeightSpread, 1.0f, white));
       }
 
       // Sparks fly off the top of tall bars, mostly on beats.
@@ -78,10 +80,14 @@ class SpectrumBars : public Visualizer {
   // alpha * (1 - alpha)^k.
   static constexpr float kAttackAlpha  = 0.8f;
   static constexpr float kReleaseAlpha = 0.3f;
+  // How much of the palette spans the width of the screen, and how far along
+  // it a full-height bar shifts from base to tip.
+  static constexpr float kColumnSpread = 0.6f;
+  static constexpr float kHeightSpread = 0.15f;
 
   float bar_[PANEL_WIDTH] = {};   // smoothed bar height, in pixels
   float peak_[PANEL_WIDTH] = {};  // falling peak marker, in pixels
-  float hue_ = 0;                 // base hue, drifts over time
+  float offset_ = 0;              // palette position, drifts over time
   float flash_ = 0;               // 1 on a beat, decays to 0
 };
 

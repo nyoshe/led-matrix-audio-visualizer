@@ -11,7 +11,8 @@
 //   - press the board's BOOT button for the next one
 //   - over serial (115200): n = next, p = previous, l = list, 0-9 = select,
 //     d = print audio levels and frame rates, b = print every band (for tuning),
-//     c = calibrate noise (keep it quiet; takes 3 s), x = clear the calibration
+//     c = calibrate noise (keep it quiet; takes 3 s), x = clear the calibration,
+//     k = next colour palette
 
 #include "src/config.h"
 #include "src/core/Audio.h"
@@ -66,6 +67,9 @@ void handleSerial() {
       Serial.println("Calibrating noise for 3 s, keep it quiet and don't touch the mic...");
       Audio::calibrateNoise(3.0f);
       calibrationReported = false;
+    } else if (c == 'k') {
+      Palettes::select(Palettes::current() + 1);
+      Serial.printf("Palette: %s\n", Palettes::name(Palettes::current()));
     } else if (c == 'x') {
       Audio::clearNoiseCalibration();
       Serial.println("Noise calibration cleared.");
@@ -90,6 +94,7 @@ void setup() {
   pinMode(Pins::BUTTON, INPUT_PULLUP);
 
   display = &Matrix::begin();
+  Palettes::begin();
   Audio::begin();
 
   if (Visualizers::count() == 0) {

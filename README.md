@@ -78,6 +78,8 @@ The detector's five wires go to the top four pins of the left header plus the GN
 
 **Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels and frame rates, or `b` to print every band's frequency and level plus the calibrated noise profile (handy for spotting interference). Send `c` to calibrate the noise, or `x` to clear the calibration (see Tuning). To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
 
+**Colour palettes:** send `k` over serial to cycle through the colour palettes: Synthwave (the default), Sunset, Ocean, Aurora, Lava, Ice and Rainbow. Spectrum Bars and Oscilloscope use them, and the choice is saved across reboots. Each palette is a looping gradient defined in `src/core/Palette.cpp`, so adding one is a list of colour stops.
+
 ### How audio and drawing fit together
 
 Audio and drawing run independently, on separate CPU cores:
@@ -99,6 +101,7 @@ led-matrix-audio-visualizer/
     │   ├── AudioFrame.h              what each visualizer receives
     │   ├── Matrix.{h,cpp}            HUB75 panel setup
     │   ├── Color.h                   levelColor / heatColor / hueColor helpers
+    │   ├── Palette.{h,cpp}           looping colour palettes (serial `k`), paletteColor()
     │   ├── Visualizer.h              base class + REGISTER_VISUALIZER
     │   └── Registry.cpp              list of registered visualizers
     └── visualizers/                  one file per visualizer

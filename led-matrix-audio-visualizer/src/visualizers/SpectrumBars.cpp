@@ -32,13 +32,18 @@ class SpectrumBars : public Visualizer {
     if (flash_ > 0.1f) display.fillScreen(hsvColor(hue_ + 0.5f, 1.0f, flash_ * 0.2f));
 
     for (int x = 0; x < PANEL_WIDTH; x++) {
-      float target = audio.bands[x * NUM_BANDS / PANEL_WIDTH] * PANEL_HEIGHT;
+      float magnitude = audio.bands[x * NUM_BANDS / PANEL_WIDTH] * PANEL_HEIGHT;
 
-      // Fast attack, slower release.
-      bar_[x] = target > bar_[x] ? target : bar_[x] * 0.85f + target * 0.15f;
+      // Smooth the magnitude over time with an asymmetric EWMA: rise fast so
+      // hits land immediately, fall slowly so bars don't flicker.
+      float alpha = magnitude > bar_[x] ? kAttackAlpha : kReleaseAlpha;
+      bar_[x] += alpha * (magnitude - bar_[x]);
 
-      if (bar_[x] >= peak_[x]) peak_[x] = bar_[x];
+      // Peak dots follow the raw magnitude, so they snap to every hit even
+      // though the bars are smoothed. Never let them sit below the bar.
+      if (magnitude >= peak_[x]) peak_[x] = magnitude;
       else peak_[x] = max(peak_[x] - 0.4f, 0.0f);
+      peak_[x] = max(peak_[x], bar_[x]);
 
       const float hue = hue_ + x * (0.8f / PANEL_WIDTH);
       const float height = bar_[x] / PANEL_HEIGHT;  // 0..1, how tall this bar is
@@ -68,6 +73,13 @@ class SpectrumBars : public Visualizer {
   }
 
  private:
+  // Weight of the newest frame in each bar's exponentially weighted moving
+  // average, separately for rising and falling: 1 = no smoothing, lower =
+  // smoother but slower to respond. A frame k frames old contributes
+  // alpha * (1 - alpha)^k.
+  static constexpr float kAttackAlpha  = 0.8f;
+  static constexpr float kReleaseAlpha = 0.3f;
+
   float bar_[PANEL_WIDTH] = {};   // smoothed bar height, in pixels
   float peak_[PANEL_WIDTH] = {};  // falling peak marker, in pixels
   float hue_ = 0;                 // base hue, drifts over time

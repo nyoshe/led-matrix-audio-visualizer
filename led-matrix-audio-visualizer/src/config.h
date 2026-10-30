@@ -46,10 +46,13 @@ constexpr int8_t BUTTON = 0;
 // ---- Audio analysis ---------------------------------------------------------
 // Audio is sampled by the ADC's DMA engine and analysed on core 0, in the
 // background, independently of the screen's frame rate.
-constexpr uint16_t FFT_SAMPLES       = 256;    // window size, must be a power of 2
+// Each analysis must finish within one hop of samples; `d` prints how long it
+// takes against that budget.
+constexpr uint16_t FFT_SAMPLES       = 256;    // window size, power of 2 (12.8 ms at 20 kHz)
 constexpr uint32_t SAMPLE_RATE_HZ    = 20000;  // ESP32 DMA ADC minimum; Nyquist 10 kHz, bin 78 Hz
 constexpr uint16_t AUDIO_HOP_SAMPLES = 128;    // analyse every N new samples (156 Hz at 20 kHz)
-constexpr uint16_t FFT_MIN_BIN       = 2;      // skip DC and the lowest rumble
+constexpr uint16_t FFT_MIN_BIN       = 2;      // skip DC and the lowest rumble (bin 2 = 156 Hz)
+constexpr float    FFT_MAX_HZ        = 10000;  // top of the band layout (capped at Nyquist)
 constexpr int      NUM_BANDS         = 64;     // log-spaced bands in AudioFrame
 
 constexpr float ANALYSIS_RATE_HZ = (float)SAMPLE_RATE_HZ / AUDIO_HOP_SAMPLES;

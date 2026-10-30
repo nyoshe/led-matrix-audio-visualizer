@@ -48,6 +48,8 @@ bool beatPending = false;  // a beat landed since the render loop last looked
 // Measured rates, for printStats().
 uint32_t rateWindowStartMs = 0, samplesInWindow = 0, analysesInWindow = 0;
 float measuredSampleRate = 0, measuredAnalysisRate = 0;
+uint32_t analysisUsSum = 0, analysisUsMax = 0;      // time spent analysing, this window
+float measuredAnalysisUsAvg = 0, measuredAnalysisUsMax = 0;
 
 // ---- ADC --------------------------------------------------------------------
 
@@ -94,7 +96,7 @@ float decayPerFrame(float seconds) { return expf(-1.0f / (seconds * ANALYSIS_RAT
 // couple of bands.
 void setupBands() {
   const float lo = FFT_MIN_BIN;
-  const float hi = FFT_SAMPLES / 2;
+  const float hi = min(FFT_SAMPLES / 2.0f, FFT_MAX_HZ * FFT_SAMPLES / SAMPLE_RATE_HZ);
   for (int i = 0; i <= NUM_BANDS; i++) {
     bandStart[i] = (uint16_t)(lo * powf(hi / lo, (float)i / NUM_BANDS));
   }
@@ -102,7 +104,7 @@ void setupBands() {
   for (int i = 1; i <= NUM_BANDS; i++) {
     if (bandStart[i] <= bandStart[i - 1]) bandStart[i] = bandStart[i - 1] + 1;
   }
-  if (bandStart[NUM_BANDS] > FFT_SAMPLES / 2) bandStart[NUM_BANDS] = FFT_SAMPLES / 2;
+  if (bandStart[NUM_BANDS] > hi) bandStart[NUM_BANDS] = (uint16_t)hi;
 
   // Treble weighting: boost each band by TREBLE_TILT_DB_PER_OCTAVE for every
   // octave its centre frequency is above the lowest band's.
@@ -235,12 +237,16 @@ void measureRates() {
   if (elapsed >= 1000) {
     measuredSampleRate = samplesInWindow * 1000.0f / elapsed;
     measuredAnalysisRate = analysesInWindow * 1000.0f / elapsed;
+    measuredAnalysisUsAvg = (float)analysisUsSum / analysesInWindow;
+    measuredAnalysisUsMax = analysisUsMax;
+    analysisUsSum = analysisUsMax = 0;
     samplesInWindow = analysesInWindow = 0;
     rateWindowStartMs += elapsed;
   }
 }
 
 void analyse() {
+  uint32_t startUs = micros();
   loadWindow();
   buildWaveform();  // before the FFT overwrites vReal
 
@@ -256,6 +262,9 @@ void analyse() {
   working.gate = digitalRead(Pins::GATE);
 
   publish();
+  uint32_t tookUs = micros() - startUs;
+  analysisUsSum += tookUs;
+  analysisUsMax = max(analysisUsMax, tookUs);
   measureRates();
 }
 
@@ -347,6 +356,8 @@ void Audio::printStats() {
   std::sort(aboveFloor, aboveFloor + NUM_BANDS);
   Serial.printf("audio %.0f samples/s, %.1f analyses/s | spectrum gain %.0f (%.1f dB)\n", measuredSampleRate,
                 measuredAnalysisRate, spectrumGain, 20.0f * log10f(spectrumGain));
+  Serial.printf("analysis takes avg %.0f us, max %.0f us (budget %.0f us per hop)\n", measuredAnalysisUsAvg,
+                measuredAnalysisUsMax, AUDIO_HOP_SAMPLES * 1e6f / SAMPLE_RATE_HZ);
   float third[3] = {};
   for (int i = 0; i < NUM_BANDS; i++) third[i * 3 / NUM_BANDS] += published.bands[i] * 3 / NUM_BANDS;
   Serial.printf("bands: median %.2f  max %.2f | low/mid/high avg %.2f %.2f %.2f | level %.2f\n",

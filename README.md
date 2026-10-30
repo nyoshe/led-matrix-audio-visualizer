@@ -74,7 +74,7 @@ The detector's five wires go to the top four pins of the left header plus the GN
 | 0 | Spectrum Bars | 64 rainbow frequency bars that glow toward their tips, with falling peak dots. Bass hits flash the display, shift the colours and throw sparks |
 | 1 | Spectrogram | Scrolling waterfall: time right → left, bass at the bottom, loudness as heat colour |
 
-**Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
+**Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels. To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
 
 ### Project layout
 
@@ -133,5 +133,5 @@ The screen is cleared before `draw()` and shown afterwards. Draw the whole pictu
 - **Panel stays dark or shows garbage:** some Waveshare panels use an FM6126A driver. Uncomment `cfg.driver = HUB75_I2S_CFG::FM6126A;` in `src/core/Matrix.cpp`.
 - **Pixels shimmer:** try `cfg.clkphase = false;`.
 - **Brightness:** change `PANEL_BRIGHTNESS` in `src/config.h`.
-- **Spectrum Bars noise:** if silence still shows bars, raise `LOG_FLOOR_MARGIN_DB` in `src/config.h`. If the bars look too jumpy, raise `LOG_MIN_SPAN_DB`.
+- **Spectrum Bars noise:** if silence still shows bars, raise `LOG_FLOOR_MARGIN_DB` in `src/config.h`. If the bars look too jumpy, raise `LOG_MIN_SPAN_DB`. Send `d` over serial to print the current levels while you tune.
 - **Sensitivity:** the gain adjusts itself. If silence still shows bars, raise the `50.0f` floor passed to `trackGain()` in `src/core/Audio.cpp`. You can also change the gain resistor on the Sound Detector.

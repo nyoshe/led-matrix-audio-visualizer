@@ -8,7 +8,8 @@
 //
 // Switching visualizers:
 //   - press the board's BOOT button for the next one
-//   - over serial (115200): n = next, p = previous, l = list, 0-9 = select
+//   - over serial (115200): n = next, p = previous, l = list, 0-9 = select,
+//     d = print audio levels (for tuning)
 
 #include "src/config.h"
 #include "src/core/Audio.h"
@@ -50,6 +51,7 @@ void handleSerial() {
     if (c == 'n') selectVisualizer(current + 1);
     else if (c == 'p') selectVisualizer(current + Visualizers::count() - 1);
     else if (c == 'l') listVisualizers();
+    else if (c == 'd') Audio::printStats();
     else if (c >= '0' && c <= '9' && (size_t)(c - '0') < Visualizers::count()) selectVisualizer(c - '0');
   }
 }

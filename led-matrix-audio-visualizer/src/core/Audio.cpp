@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <arduinoFFT.h>
 
+#include <algorithm>
+
 #include "Color.h"
 
 namespace {
@@ -159,4 +161,17 @@ const AudioFrame& Audio::capture() {
   frame.envelope = analogRead(Pins::ENVELOPE) / 4095.0f;
   frame.gate = digitalRead(Pins::GATE);
   return frame;
+}
+
+void Audio::printStats() {
+  float height[NUM_BANDS], aboveFloor[NUM_BANDS];
+  for (int i = 0; i < NUM_BANDS; i++) {
+    height[i] = frame.bandsDb[i];
+    aboveFloor[i] = bandDb[i] - noiseFloorDb[i];
+  }
+  std::sort(height, height + NUM_BANDS);
+  std::sort(aboveFloor, aboveFloor + NUM_BANDS);
+  Serial.printf("dB above floor: median %.1f  max %.1f | span %.1f dB | height median %.2f  max %.2f | level %.2f\n",
+                aboveFloor[NUM_BANDS / 2], aboveFloor[NUM_BANDS - 1], spanDb,
+                height[NUM_BANDS / 2], height[NUM_BANDS - 1], frame.level);
 }

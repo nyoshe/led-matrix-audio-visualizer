@@ -75,6 +75,7 @@ The detector's five wires go to the top four pins of the left header plus the GN
 | 1 | Spectrogram | Scrolling waterfall: time right → left, bass at the bottom, loudness as heat colour |
 | 2 | Oscilloscope | The raw waveform as a glowing line with fading trails, held steady on a rising zero-crossing. Colour drifts with loudness, and beats flash it brighter |
 | 3 | Fire | Demoscene-style flames fed from the bottom by each column's band. Loud bands burn tall, and beats send a flare across the base |
+| 4 | VU Meter | Twin analog gauges (bass left, treble right) with a green→yellow→red scale arc, swinging needle and a peak-hold lamp that flashes on beats |
 
 **Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels and frame rates, or `b` to print every band's frequency and level plus the calibrated noise profile (handy for spotting interference). Send `c` to calibrate the noise, or `x` to clear the calibration (see Tuning). To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
 
@@ -108,7 +109,8 @@ led-matrix-audio-visualizer/
         ├── SpectrumBars.cpp
         ├── Spectrogram.cpp
         ├── Oscilloscope.cpp
-        └── Fire.cpp
+        ├── Fire.cpp
+        └── VuMeter.cpp
 ```
 
 ### Adding a visualizer

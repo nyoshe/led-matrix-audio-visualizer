@@ -126,7 +126,7 @@ REGISTER_VISUALIZER(Pulse, 30);  // the number sets its position in the rotation
 ```
 
 Each frame, `AudioFrame` gives you:
-- `bands[64]`: the spectrum, 0–1, log-spaced from bass to treble.
+- `bands[64]`: the spectrum, 0–1, log-spaced from bass to treble. The treble is boosted by `TREBLE_TILT_DB_PER_OCTAVE` so high bands aren't dwarfed by the bass.
 - `bandsDb[64]`: the same bands on a decibel (log) scale, 0–1. It measures how far each band is above its own learned noise floor, so quiet detail shows and silence stays dark. The `LOG_*` settings in `config.h` control it.
 - `waveform[256]`: the raw signal, −1 to 1.
 - `level`: overall loudness, 0–1.
@@ -143,5 +143,6 @@ The screen is cleared before `draw()` and shown afterwards. Draw the whole pictu
 - **Pixels shimmer:** try `cfg.clkphase = false;`.
 - **Brightness:** change `PANEL_BRIGHTNESS` in `src/config.h`.
 - **Decibel bands (`bandsDb`) noise:** if a visualizer using `bandsDb` shows bars in silence, raise `LOG_FLOOR_MARGIN_DB` in `src/config.h`. If the bars look too jumpy, raise `LOG_MIN_SPAN_DB`. Send `d` over serial to print the current levels while you tune.
+- **Treble vs bass balance:** raise `TREBLE_TILT_DB_PER_OCTAVE` in `src/config.h` if the right-hand bars run short, or lower it if they tower over the bass. `d` prints the average bar height for the low, middle and high thirds of the display.
 - **Recovery after loud spikes:** `AGC_RELEASE_S` sets how quickly the scale eases back after a loud moment. Lower is faster, but too low makes quiet and loud songs look the same. `AGC_ATTACK_S` sets how quickly it catches up when audio gets louder.
 - **Sensitivity:** the gain adjusts itself. If silence still shows bars, raise the `50.0f` floor passed to `trackGain()` in `src/core/Audio.cpp`. You can also change the gain resistor on the Sound Detector.

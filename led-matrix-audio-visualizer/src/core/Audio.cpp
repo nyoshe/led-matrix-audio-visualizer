@@ -29,6 +29,7 @@ uint32_t envelopeSum = 0;
 uint32_t envelopeCount = 0;
 
 uint16_t bandStart[NUM_BANDS + 1];  // first FFT bin of each band
+float bandWeight[NUM_BANDS];        // treble boost applied to each band's magnitude
 AudioFrame working;                 // the frame being built
 float bandDb[NUM_BANDS];            // raw dB of each band
 float noiseFloorDb[NUM_BANDS];      // learned noise level of each band
@@ -103,6 +104,13 @@ void setupBands() {
   }
   if (bandStart[NUM_BANDS] > FFT_SAMPLES / 2) bandStart[NUM_BANDS] = FFT_SAMPLES / 2;
 
+  // Treble weighting: boost each band by TREBLE_TILT_DB_PER_OCTAVE for every
+  // octave its centre frequency is above the lowest band's.
+  auto centre = [](int i) { return (bandStart[i] + bandStart[i + 1] - 1) * 0.5f; };
+  for (int i = 0; i < NUM_BANDS; i++) {
+    float octaves = log2f(centre(i) / centre(0));
+    bandWeight[i] = powf(10.0f, octaves * TREBLE_TILT_DB_PER_OCTAVE / 20.0f);
+  }
 }
 
 // Automatic gain control: follows a level in dB with a fast attack and a
@@ -184,16 +192,15 @@ void buildBands() {
       sum += vReal[b];
       n++;
     }
-    working.bands[i] = n ? sum / n : 0;
+    float magnitude = n ? sum / n : 0;
+    bandDb[i] = 20.0f * log10f(max(magnitude, 1e-3f));  // unweighted, for bandsDb
+    working.bands[i] = magnitude * bandWeight[i];
     loudest = max(loudest, working.bands[i]);
   }
 
   spectrumGain = spectrumAgc.update(loudest);
 
-  for (int i = 0; i < NUM_BANDS; i++) {
-    bandDb[i] = 20.0f * log10f(max(working.bands[i], 1e-3f));
-    working.bands[i] = min(working.bands[i] / spectrumGain, 1.0f);
-  }
+  for (int i = 0; i < NUM_BANDS; i++) working.bands[i] = min(working.bands[i] / spectrumGain, 1.0f);
   buildBandsDb();
 }
 
@@ -340,8 +347,10 @@ void Audio::printStats() {
   std::sort(aboveFloor, aboveFloor + NUM_BANDS);
   Serial.printf("audio %.0f samples/s, %.1f analyses/s | spectrum gain %.0f (%.1f dB)\n", measuredSampleRate,
                 measuredAnalysisRate, spectrumGain, 20.0f * log10f(spectrumGain));
-  Serial.printf("bands: median %.2f  max %.2f | level %.2f\n", linear[NUM_BANDS / 2], linear[NUM_BANDS - 1],
-                published.level);
+  float third[3] = {};
+  for (int i = 0; i < NUM_BANDS; i++) third[i * 3 / NUM_BANDS] += published.bands[i] * 3 / NUM_BANDS;
+  Serial.printf("bands: median %.2f  max %.2f | low/mid/high avg %.2f %.2f %.2f | level %.2f\n",
+                linear[NUM_BANDS / 2], linear[NUM_BANDS - 1], third[0], third[1], third[2], published.level);
   Serial.printf("bandsDb: above floor median %.1f  max %.1f dB | span %.1f dB | median %.2f  max %.2f\n",
                 aboveFloor[NUM_BANDS / 2], aboveFloor[NUM_BANDS - 1], spanDb, height[NUM_BANDS / 2],
                 height[NUM_BANDS - 1]);

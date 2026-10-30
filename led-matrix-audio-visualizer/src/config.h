@@ -54,6 +54,13 @@ constexpr int      NUM_BANDS         = 64;     // log-spaced bands in AudioFrame
 
 constexpr float ANALYSIS_RATE_HZ = (float)SAMPLE_RATE_HZ / AUDIO_HOP_SAMPLES;
 
+// Music and most mics get quieter towards the treble (measured here: about
+// 1.6 dB per octave), which leaves the right-hand bars short. AudioFrame::bands
+// are boosted by this much per octave above the lowest band to even that out.
+// 0 = no weighting. Measured on this setup, 2 evens out the low and high
+// thirds of the display on average; 3 makes the treble about twice as tall.
+constexpr float TREBLE_TILT_DB_PER_OCTAVE = 2.0f;
+
 // Decibel scale (AudioFrame::bandsDb). Each band learns its own noise floor
 // (drops quickly, creeps up slowly), and 0..1 covers how far the band is above
 // that floor, up to the loudest band recently seen.

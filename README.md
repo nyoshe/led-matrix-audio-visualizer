@@ -74,17 +74,26 @@ The detector's five wires go to the top four pins of the left header plus the GN
 | 0 | Spectrum Bars | 64 rainbow frequency bars that glow toward their tips, with falling peak dots. Bass hits flash the display, shift the colours and throw sparks |
 | 1 | Spectrogram | Scrolling waterfall: time right → left, bass at the bottom, loudness as heat colour |
 
-**Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels. To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
+**Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels and frame rates. To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
+
+### How audio and drawing fit together
+
+Audio and drawing run independently, on separate CPU cores:
+
+- **Core 0, audio:** the ADC samples the Sound Detector at 20 kHz into memory via DMA, with no CPU involved. Every `AUDIO_HOP_SAMPLES` (128) new samples, a background task analyses the latest `FFT_SAMPLES` (256), about 156 times a second. Each window overlaps the previous one by half, so a fresh analysis is ready every 6.4 ms.
+- **Core 1, drawing:** `loop()` draws the active visualizer at a steady `RENDER_FPS` using the newest analysis. It never waits for audio. A beat that lands between two frames is held until the next frame, so none are missed.
+
+All of these settings are in `src/config.h`. Raising `RENDER_FPS` or the analysis rate doesn't affect the other.
 
 ### Project layout
 
 ```
 led-matrix-audio-visualizer/
-├── led-matrix-audio-visualizer.ino   main loop: capture → draw → flip, switching
+├── led-matrix-audio-visualizer.ino   render loop (core 1): draw newest audio at RENDER_FPS, switching
 └── src/
     ├── config.h                      pins, panel size, FFT and switching settings
     ├── core/
-    │   ├── Audio.{h,cpp}             sampling + FFT → AudioFrame
+    │   ├── Audio.{h,cpp}             DMA sampling + FFT task (core 0) → AudioFrame
     │   ├── AudioFrame.h              what each visualizer receives
     │   ├── Matrix.{h,cpp}            HUB75 panel setup
     │   ├── Color.h                   levelColor / heatColor / hueColor helpers

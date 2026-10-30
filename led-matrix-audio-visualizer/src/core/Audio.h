@@ -2,11 +2,15 @@
 
 #include "AudioFrame.h"
 
-// Samples the SparkFun Sound Detector and turns it into an AudioFrame.
+// Samples the SparkFun Sound Detector and turns it into AudioFrames, in the
+// background on core 0.
 namespace Audio {
+// Starts DMA sampling and the analysis task.
 void begin();
-// Blocks for one block of samples (FFT_SAMPLES / SAMPLE_RATE_HZ seconds).
-const AudioFrame& capture();
-// Prints decibel levels and bar heights to Serial, for tuning.
+// Copies the newest analysed frame into `out`. Never blocks. `beat` is true if
+// a beat landed at any point since the previous call, so none are missed when
+// audio is analysed faster than the screen is drawn.
+void latest(AudioFrame& out);
+// Prints audio rates, decibel levels and bar heights to Serial, for tuning.
 void printStats();
 }  // namespace Audio

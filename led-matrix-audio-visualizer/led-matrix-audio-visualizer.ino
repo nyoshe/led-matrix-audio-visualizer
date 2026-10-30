@@ -2,14 +2,15 @@
 //   ELEGOO ESP-WROOM-32 + Waveshare 64x32 RGB (HUB75) LED matrix
 //   + SparkFun Sound Detector
 //
-// Captures audio, then hands each analysed frame to the active visualizer.
+// Audio is sampled and analysed in the background on core 0 (src/core/Audio);
+// this loop draws the newest analysed frame at a fixed RENDER_FPS on core 1.
 // Visualizers live in src/visualizers/ and register themselves; see
 // src/core/Visualizer.h for how to add one.
 //
 // Switching visualizers:
 //   - press the board's BOOT button for the next one
 //   - over serial (115200): n = next, p = previous, l = list, 0-9 = select,
-//     d = print audio levels (for tuning)
+//     d = print audio levels and frame rates (for tuning)
 
 #include "src/config.h"
 #include "src/core/Audio.h"
@@ -19,6 +20,8 @@
 Display* display = nullptr;
 size_t current = 0;
 uint32_t lastSwitchMs = 0;
+AudioFrame audio;           // newest frame from the audio task
+float measuredRenderFps = 0;
 
 void selectVisualizer(size_t index) {
   size_t n = Visualizers::count();
@@ -51,8 +54,22 @@ void handleSerial() {
     if (c == 'n') selectVisualizer(current + 1);
     else if (c == 'p') selectVisualizer(current + Visualizers::count() - 1);
     else if (c == 'l') listVisualizers();
-    else if (c == 'd') Audio::printStats();
-    else if (c >= '0' && c <= '9' && (size_t)(c - '0') < Visualizers::count()) selectVisualizer(c - '0');
+    else if (c == 'd') {
+      Serial.printf("render %.1f fps\n", measuredRenderFps);
+      Audio::printStats();
+    } else if (c >= '0' && c <= '9' && (size_t)(c - '0') < Visualizers::count()) selectVisualizer(c - '0');
+  }
+}
+
+void measureRenderFps() {
+  static uint32_t windowStartMs = millis();
+  static uint32_t frames = 0;
+  frames++;
+  uint32_t elapsed = millis() - windowStartMs;
+  if (elapsed >= 1000) {
+    measuredRenderFps = frames * 1000.0f / elapsed;
+    frames = 0;
+    windowStartMs += elapsed;
   }
 }
 
@@ -77,8 +94,13 @@ void loop() {
   handleSerial();
   if (AUTO_CYCLE_MS && millis() - lastSwitchMs >= AUTO_CYCLE_MS) selectVisualizer(current + 1);
 
-  const AudioFrame& audio = Audio::capture();
+  Audio::latest(audio);
   display->fillScreen(0);
   Visualizers::get(current)->draw(audio, *display);
   display->flipDMABuffer();
+
+  measureRenderFps();
+  // Hold a steady frame rate; audio keeps being analysed meanwhile.
+  static TickType_t lastWake = xTaskGetTickCount();
+  vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(1000 / RENDER_FPS));
 }

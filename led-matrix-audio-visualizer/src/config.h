@@ -44,19 +44,28 @@ constexpr int8_t BUTTON = 0;
 }  // namespace Pins
 
 // ---- Audio analysis ---------------------------------------------------------
-constexpr uint16_t FFT_SAMPLES    = 256;    // must be a power of 2
-constexpr uint32_t SAMPLE_RATE_HZ = 16000;  // Nyquist = 8 kHz, bin = 62.5 Hz
-constexpr uint16_t FFT_MIN_BIN    = 2;      // skip DC and the lowest rumble
-constexpr int      NUM_BANDS      = 64;     // log-spaced bands in AudioFrame
+// Audio is sampled by the ADC's DMA engine and analysed on core 0, in the
+// background, independently of the screen's frame rate.
+constexpr uint16_t FFT_SAMPLES       = 256;    // window size, must be a power of 2
+constexpr uint32_t SAMPLE_RATE_HZ    = 20000;  // ESP32 DMA ADC minimum; Nyquist 10 kHz, bin 78 Hz
+constexpr uint16_t AUDIO_HOP_SAMPLES = 128;    // analyse every N new samples (156 Hz at 20 kHz)
+constexpr uint16_t FFT_MIN_BIN       = 2;      // skip DC and the lowest rumble
+constexpr int      NUM_BANDS         = 64;     // log-spaced bands in AudioFrame
+
+constexpr float ANALYSIS_RATE_HZ = (float)SAMPLE_RATE_HZ / AUDIO_HOP_SAMPLES;
 
 // Decibel scale (AudioFrame::bandsDb). Each band learns its own noise floor
 // (drops quickly, creeps up slowly), and 0..1 covers how far the band is above
 // that floor, up to the loudest band recently seen.
-constexpr float LOG_FLOOR_MARGIN_DB = 8.0f;    // ignore this much above the floor (hides hiss)
-constexpr float LOG_MIN_SPAN_DB     = 12.0f;   // full height is at least this far above the floor
-constexpr float LOG_MAX_SPAN_DB     = 40.0f;   // ...and at most this far
-constexpr float LOG_FLOOR_FALL      = 0.05f;   // per frame, how fast the floor drops to quieter input
-constexpr float LOG_FLOOR_RISE      = 0.002f;  // per frame, how fast it creeps up (~10 s)
+constexpr float LOG_FLOOR_MARGIN_DB = 8.0f;   // ignore this much above the floor (hides hiss)
+constexpr float LOG_MIN_SPAN_DB     = 12.0f;  // full height is at least this far above the floor
+constexpr float LOG_MAX_SPAN_DB     = 40.0f;  // ...and at most this far
+constexpr float LOG_FLOOR_FALL_S    = 0.4f;   // time constant for the floor dropping to quieter input
+constexpr float LOG_FLOOR_RISE_S    = 10.0f;  // time constant for it creeping back up
+
+// ---- Rendering --------------------------------------------------------------
+// Visualizers are drawn at this fixed rate, from the newest analysed audio.
+constexpr uint32_t RENDER_FPS = 60;
 
 // ---- Visualizer switching ---------------------------------------------------
 constexpr uint32_t AUTO_CYCLE_MS = 0;  // switch visualizer every N ms; 0 = off

@@ -22,9 +22,10 @@ class Visualizer {
   // Called each time this visualizer becomes active; clear any history here.
   virtual void reset() {}
 
-  // Draw one frame. The screen has already been cleared to black and is
-  // flipped onto the panel afterwards, so draw the whole picture every time
-  // and keep any persistence (trails, history) in member variables.
+  // Draw one frame; called RENDER_FPS times a second with the newest audio.
+  // The screen has already been cleared to black and is flipped onto the
+  // panel afterwards, so draw the whole picture every time and keep any
+  // persistence (trails, history) in member variables.
   virtual void draw(const AudioFrame& audio, Display& display) = 0;
 };
 

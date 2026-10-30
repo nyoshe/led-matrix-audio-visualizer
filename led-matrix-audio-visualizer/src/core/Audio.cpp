@@ -29,8 +29,6 @@ uint32_t envelopeSum = 0;
 uint32_t envelopeCount = 0;
 
 uint16_t bandStart[NUM_BANDS + 1];  // first FFT bin of each band
-float spectrumGain = 1.0f;          // tracks the loudest recent band
-float waveGain = 1.0f;              // tracks the largest recent sample
 AudioFrame working;                 // the frame being built
 float bandDb[NUM_BANDS];            // raw dB of each band
 float noiseFloorDb[NUM_BANDS];      // learned noise level of each band
@@ -38,7 +36,7 @@ bool noiseFloorReady = false;
 float spanDb = LOG_MIN_SPAN_DB;     // dB above the floor that maps to 1.0
 
 // Per-analysis-frame rates, derived from time constants in begin().
-float gainDecay, bassAverageDecay, floorFall, floorRise;
+float agcAttack, agcRelease, bassAverageDecay, floorFall, floorRise;
 
 // ---- Shared with the render loop --------------------------------------------
 
@@ -104,14 +102,31 @@ void setupBands() {
     if (bandStart[i] <= bandStart[i - 1]) bandStart[i] = bandStart[i - 1] + 1;
   }
   if (bandStart[NUM_BANDS] > FFT_SAMPLES / 2) bandStart[NUM_BANDS] = FFT_SAMPLES / 2;
+
 }
 
-// Jump up on loud input, decay slowly in quiet passages, never drop below
-// `floor` so silence doesn't get amplified into noise.
-void trackGain(float& gain, float loudest, float floor) {
-  if (loudest > gain) gain = loudest;
-  else gain = max(gain * gainDecay, floor);
-}
+// Automatic gain control: follows a level in dB with a fast attack and a
+// slower release, so a loud spike only squashes the display briefly. Works in
+// dB so recovering from a 20 dB spike takes the same time at any volume.
+// Never follows below `floor`, so silence isn't amplified into noise.
+struct GainFollower {
+  float floor;
+  float levelDb;
+
+  explicit GainFollower(float floor) : floor(floor), levelDb(20.0f * log10f(floor)) {}
+
+  // Returns the gain that puts the followed level at AGC_HEADROOM.
+  float update(float level) {
+    float db = 20.0f * log10f(max(level, floor));
+    levelDb += (db - levelDb) * (db > levelDb ? agcAttack : agcRelease);
+    return powf(10.0f, levelDb / 20.0f) / AGC_HEADROOM;
+  }
+};
+
+GainFollower spectrumAgc(50.0f);  // loudest band
+GainFollower waveAgc(40.0f);      // largest sample
+float spectrumGain = 1.0f;
+float waveGain = 1.0f;
 
 void loadWindow() {
   // Remove the DC bias (AUDIO idles around VCC/2).
@@ -127,7 +142,7 @@ void loadWindow() {
 void buildWaveform() {
   float peak = 0;
   for (int i = 0; i < FFT_SAMPLES; i++) peak = max(peak, fabsf(vReal[i]));
-  trackGain(waveGain, peak, 40.0f);
+  waveGain = waveAgc.update(peak);
 
   float sumSq = 0;
   for (int i = 0; i < FFT_SAMPLES; i++) {
@@ -153,8 +168,8 @@ void buildBandsDb() {
   }
   noiseFloorReady = true;
 
-  // Full height tracks the loudest band: jump up, decay slowly.
-  spanDb = loudest > spanDb ? loudest : spanDb * gainDecay;
+  // Full height tracks the loudest band: jump up, ease back like the AGC.
+  spanDb = loudest > spanDb ? loudest : spanDb + (loudest - spanDb) * agcRelease;
   spanDb = constrain(spanDb, LOG_MIN_SPAN_DB, LOG_MAX_SPAN_DB);
 
   for (int i = 0; i < NUM_BANDS; i++) working.bandsDb[i] = clamp01(above[i] / spanDb);
@@ -173,7 +188,7 @@ void buildBands() {
     loudest = max(loudest, working.bands[i]);
   }
 
-  trackGain(spectrumGain, loudest, 50.0f);
+  spectrumGain = spectrumAgc.update(loudest);
 
   for (int i = 0; i < NUM_BANDS; i++) {
     bandDb[i] = 20.0f * log10f(max(working.bands[i], 1e-3f));
@@ -293,7 +308,8 @@ void Audio::begin() {
   pinMode(Pins::GATE, INPUT);
   setupBands();
 
-  gainDecay = decayPerFrame(4.0f);
+  agcAttack = 1 - decayPerFrame(AGC_ATTACK_S);
+  agcRelease = 1 - decayPerFrame(AGC_RELEASE_S);
   bassAverageDecay = decayPerFrame(0.4f);
   floorFall = 1 - decayPerFrame(LOG_FLOOR_FALL_S);
   floorRise = 1 - decayPerFrame(LOG_FLOOR_RISE_S);
@@ -313,17 +329,22 @@ void Audio::latest(AudioFrame& out) {
 
 void Audio::printStats() {
   // Reads the audio task's state without locking; fine for a rough printout.
-  float height[NUM_BANDS], aboveFloor[NUM_BANDS];
+  float linear[NUM_BANDS], height[NUM_BANDS], aboveFloor[NUM_BANDS];
   for (int i = 0; i < NUM_BANDS; i++) {
+    linear[i] = published.bands[i];
     height[i] = published.bandsDb[i];
     aboveFloor[i] = bandDb[i] - noiseFloorDb[i];
   }
+  std::sort(linear, linear + NUM_BANDS);
   std::sort(height, height + NUM_BANDS);
   std::sort(aboveFloor, aboveFloor + NUM_BANDS);
-  Serial.printf("audio %.0f samples/s, %.1f analyses/s\n", measuredSampleRate, measuredAnalysisRate);
-  Serial.printf("dB above floor: median %.1f  max %.1f | span %.1f dB | height median %.2f  max %.2f | level %.2f\n",
-                aboveFloor[NUM_BANDS / 2], aboveFloor[NUM_BANDS - 1], spanDb,
-                height[NUM_BANDS / 2], height[NUM_BANDS - 1], published.level);
+  Serial.printf("audio %.0f samples/s, %.1f analyses/s | spectrum gain %.0f (%.1f dB)\n", measuredSampleRate,
+                measuredAnalysisRate, spectrumGain, 20.0f * log10f(spectrumGain));
+  Serial.printf("bands: median %.2f  max %.2f | level %.2f\n", linear[NUM_BANDS / 2], linear[NUM_BANDS - 1],
+                published.level);
+  Serial.printf("bandsDb: above floor median %.1f  max %.1f dB | span %.1f dB | median %.2f  max %.2f\n",
+                aboveFloor[NUM_BANDS / 2], aboveFloor[NUM_BANDS - 1], spanDb, height[NUM_BANDS / 2],
+                height[NUM_BANDS - 1]);
 }
 
 void Audio::printBands() {

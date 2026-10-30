@@ -143,4 +143,5 @@ The screen is cleared before `draw()` and shown afterwards. Draw the whole pictu
 - **Pixels shimmer:** try `cfg.clkphase = false;`.
 - **Brightness:** change `PANEL_BRIGHTNESS` in `src/config.h`.
 - **Decibel bands (`bandsDb`) noise:** if a visualizer using `bandsDb` shows bars in silence, raise `LOG_FLOOR_MARGIN_DB` in `src/config.h`. If the bars look too jumpy, raise `LOG_MIN_SPAN_DB`. Send `d` over serial to print the current levels while you tune.
+- **Recovery after loud spikes:** `AGC_RELEASE_S` sets how quickly the scale eases back after a loud moment. Lower is faster, but too low makes quiet and loud songs look the same. `AGC_ATTACK_S` sets how quickly it catches up when audio gets louder.
 - **Sensitivity:** the gain adjusts itself. If silence still shows bars, raise the `50.0f` floor passed to `trackGain()` in `src/core/Audio.cpp`. You can also change the gain resistor on the Sound Detector.

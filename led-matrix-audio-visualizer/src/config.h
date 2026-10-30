@@ -63,6 +63,13 @@ constexpr float LOG_MAX_SPAN_DB     = 40.0f;  // ...and at most this far
 constexpr float LOG_FLOOR_FALL_S    = 0.4f;   // time constant for the floor dropping to quieter input
 constexpr float LOG_FLOOR_RISE_S    = 10.0f;  // time constant for it creeping back up
 
+// Automatic gain: the display scale follows the loudest band (in dB), rising
+// quickly when audio gets louder and easing back when it gets quieter. The
+// followed level is drawn at AGC_HEADROOM of full height.
+constexpr float AGC_ATTACK_S  = 0.02f;  // time constant for catching up with louder audio
+constexpr float AGC_RELEASE_S = 0.5f;   // time constant for easing back after it gets quieter
+constexpr float AGC_HEADROOM  = 0.9f;   // followed level sits at this fraction of full height
+
 // ---- Rendering --------------------------------------------------------------
 // Visualizers are drawn at this fixed rate, from the newest analysed audio.
 constexpr uint32_t RENDER_FPS = 60;

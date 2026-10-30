@@ -12,7 +12,5 @@ struct AudioFrame {
   float level;                    // 0..1 overall loudness (RMS)
   float bass;                     // 0..1 average of the lowest bands
   bool beat;                      // true on the frame a bass hit lands
-  float envelope;                 // 0..1 Sound Detector ENVELOPE output
-  bool gate;                      // Sound Detector GATE output
   uint32_t frame;                 // increments on every capture
 };

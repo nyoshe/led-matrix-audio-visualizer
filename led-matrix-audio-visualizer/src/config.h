@@ -32,11 +32,8 @@ constexpr int8_t LAT = 5;
 constexpr int8_t OE  = 17;
 constexpr int8_t E   = -1;  // unused on a 1/16 scan 32-row panel
 
-// Sound detector: top of the left header, directly below 3V3.
-// Input-only ADC1 pins, which is all the detector needs.
-constexpr int8_t AUDIO    = 36;  // VP: raw waveform, biased at VCC/2
-constexpr int8_t ENVELOPE = 39;  // VN: amplitude envelope
-constexpr int8_t GATE     = 34;  // high when sound exceeds threshold
+// Sound detector AUDIO output: top of the left header, an input-only ADC1 pin.
+constexpr int8_t AUDIO = 36;  // VP: raw waveform, biased at VCC/2
 
 // The board's BOOT button (GPIO0 has an on-board pull-up and is only a
 // strapping pin at reset, so it's free to read afterwards).

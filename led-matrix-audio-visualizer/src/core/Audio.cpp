@@ -9,11 +9,10 @@
 
 #include "Color.h"
 
-// How it works: the ADC's DMA engine samples AUDIO and ENVELOPE continuously
-// into memory. A task on core 0 collects the samples and, every
-// AUDIO_HOP_SAMPLES new ones, analyses the most recent FFT_SAMPLES (so windows
-// overlap). Each result is published for the render loop on core 1 to pick up
-// whenever it draws, so neither side waits on the other.
+// The ADC's DMA engine samples AUDIO continuously into memory; a task on
+// core 0 analyses the latest FFT_SAMPLES every AUDIO_HOP_SAMPLES (overlapping
+// windows) and publishes the result for core 1 to read without blocking
+// either side.
 
 namespace {
 
@@ -26,8 +25,6 @@ ArduinoFFT<float> fft(vReal, vImag, FFT_SAMPLES, SAMPLE_RATE_HZ);
 float window[FFT_SAMPLES];            // most recent samples, newest last
 float hop[AUDIO_HOP_SAMPLES];         // samples collected since the last analysis
 int hopFill = 0;
-uint32_t envelopeSum = 0;
-uint32_t envelopeCount = 0;
 
 uint16_t bandStart[NUM_BANDS + 1];  // first FFT bin of each band
 float bandWeight[NUM_BANDS];        // treble boost applied to each band's magnitude
@@ -109,34 +106,29 @@ float measuredAnalysisUsAvg = 0, measuredAnalysisUsMax = 0;
 
 // ---- ADC --------------------------------------------------------------------
 
-constexpr int kAdcChannels = 2;  // AUDIO and ENVELOPE
-constexpr uint32_t kReadBytes = AUDIO_HOP_SAMPLES * ADC_OVERSAMPLE * kAdcChannels * SOC_ADC_DIGI_RESULT_BYTES;
+constexpr uint32_t kReadBytes = AUDIO_HOP_SAMPLES * ADC_OVERSAMPLE * SOC_ADC_DIGI_RESULT_BYTES;
 adc_continuous_handle_t adc = nullptr;
-adc_channel_t audioChannel, envelopeChannel;
+adc_channel_t audioChannel;
 
 void startAdc() {
   adc_unit_t unit;
   ESP_ERROR_CHECK(adc_continuous_io_to_channel(Pins::AUDIO, &unit, &audioChannel));
-  ESP_ERROR_CHECK(adc_continuous_io_to_channel(Pins::ENVELOPE, &unit, &envelopeChannel));
 
   adc_continuous_handle_cfg_t handleConfig = {};
   handleConfig.max_store_buf_size = kReadBytes * 4;
   handleConfig.conv_frame_size = kReadBytes;
   ESP_ERROR_CHECK(adc_continuous_new_handle(&handleConfig, &adc));
 
-  adc_digi_pattern_config_t pattern[kAdcChannels] = {};
-  const adc_channel_t channels[kAdcChannels] = {audioChannel, envelopeChannel};
-  for (int i = 0; i < kAdcChannels; i++) {
-    pattern[i].atten = ADC_ATTEN_DB_12;  // ~0-3.3 V input range
-    pattern[i].channel = channels[i];
-    pattern[i].unit = ADC_UNIT_1;
-    pattern[i].bit_width = SOC_ADC_DIGI_MAX_BITWIDTH;
-  }
+  adc_digi_pattern_config_t pattern = {};
+  pattern.atten = ADC_ATTEN_DB_12;  // ~0-3.3 V input range
+  pattern.channel = audioChannel;
+  pattern.unit = ADC_UNIT_1;
+  pattern.bit_width = SOC_ADC_DIGI_MAX_BITWIDTH;
 
   adc_continuous_config_t config = {};
-  config.pattern_num = kAdcChannels;
-  config.adc_pattern = pattern;
-  config.sample_freq_hz = SAMPLE_RATE_HZ * ADC_OVERSAMPLE * kAdcChannels;  // conversions/s, both pins
+  config.pattern_num = 1;
+  config.adc_pattern = &pattern;
+  config.sample_freq_hz = SAMPLE_RATE_HZ * ADC_OVERSAMPLE;
   config.conv_mode = ADC_CONV_SINGLE_UNIT_1;
   config.format = ADC_DIGI_OUTPUT_FORMAT_TYPE1;
   ESP_ERROR_CHECK(adc_continuous_config(adc, &config));
@@ -319,9 +311,6 @@ void analyse() {
 
   working.frame++;
   detectBeat();
-  if (envelopeCount) working.envelope = envelopeSum / (envelopeCount * 4095.0f);
-  envelopeSum = envelopeCount = 0;
-  working.gate = digitalRead(Pins::GATE);
 
   publish();
   uint32_t tookUs = micros() - startUs;
@@ -384,12 +373,7 @@ void audioTask(void*) {
 
     for (uint32_t i = 0; i + SOC_ADC_DIGI_RESULT_BYTES <= length; i += SOC_ADC_DIGI_RESULT_BYTES) {
       auto* result = reinterpret_cast<adc_digi_output_data_t*>(&buffer[i]);
-      if (result->type1.channel == audioChannel) {
-        addRawAudioSample(result->type1.data);
-      } else if (result->type1.channel == envelopeChannel) {
-        envelopeSum += result->type1.data;
-        envelopeCount++;
-      }
+      addRawAudioSample(result->type1.data);
     }
     busyUsInWindow += micros() - startUs;
   }
@@ -398,7 +382,6 @@ void audioTask(void*) {
 }  // namespace
 
 void Audio::begin() {
-  pinMode(Pins::GATE, INPUT);
   setupBands();
 
   agcAttack = 1 - decayPerFrame(AGC_ATTACK_S);

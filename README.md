@@ -23,8 +23,8 @@ The pin map targets the **ELEGOO ESP-WROOM-32** dev board, which has the 38-pin 
   3V3   ● │ ◄ SD VCC    │ ●  GND   ◄ SD GND
   EN    ● │             │ ●  23    ◄ A
   VP 36 ● │ ◄ SD AUDIO  │ ●  22    ◄ B
-  VN 39 ● │ ◄ SD ENVEL. │ ●  TX
-  34    ● │ ◄ SD GATE   │ ●  RX
+  VN 39 ● │             │ ●  TX
+  34    ● │             │ ●  RX
   35    ● │             │ ●  21    ◄ C
   32    ● │ ◄ R1        │ ●  GND   ◄ matrix GND
   33    ● │ ◄ G1        │ ●  19    ◄ D
@@ -62,10 +62,8 @@ Power the matrix from its own 5 V supply rated for at least 2–4 A, and tie its
 | VCC | 3V3 (keeps the analog outputs inside the ADC's range) |
 | GND | GND (top of the right header) |
 | AUDIO | VP / 36 |
-| ENVELOPE | VN / 39 (wired but not used yet) |
-| GATE | 34 (wired but not used yet) |
 
-The detector's five wires go to the top four pins of the left header plus the GND directly opposite.
+The detector's ENVELOPE and GATE outputs aren't used; only VCC, GND and AUDIO need wiring.
 
 ## Visualizers
 
@@ -144,7 +142,6 @@ Each frame, `AudioFrame` gives you:
 - `waveform[256]`: the raw signal, −1 to 1.
 - `level`: overall loudness, 0–1.
 - `bass` and `beat`: bass level, 0–1, and a flag that is true on the frame a bass hit lands.
-- `envelope` and `gate`: the Sound Detector's own outputs.
 
 The levels adjust themselves to how loud the room is, so you don't need to scale them.
 

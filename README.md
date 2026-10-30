@@ -77,6 +77,7 @@ The detector's five wires go to the top four pins of the left header plus the GN
 | 3 | Fire | Demoscene-style flames fed from the bottom by each column's band. Loud bands burn tall, and beats send a flare across the base |
 | 4 | VU Meter | Twin analog gauges (bass left, treble right) with a green→yellow→red scale arc, swinging needle and a peak-hold lamp that flashes on beats |
 | 5 | Kaleidoscope | One rotating quadrant mirrored four ways, coloured by angle (frequency band) and distance from the centre. Spins faster when it's loud, and beats jolt it |
+| 6 | LED Bargraph | A chunky 16×8 grid of retro LED segments, green→yellow→red, with dim "ghost" segments when unlit and a peak-hold segment per column |
 
 **Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels and frame rates, or `b` to print every band's frequency and level plus the calibrated noise profile (handy for spotting interference). Send `c` to calibrate the noise, or `x` to clear the calibration (see Tuning). To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
 
@@ -112,7 +113,8 @@ led-matrix-audio-visualizer/
         ├── Oscilloscope.cpp
         ├── Fire.cpp
         ├── VuMeter.cpp
-        └── Kaleidoscope.cpp
+        ├── Kaleidoscope.cpp
+        └── LedBargraph.cpp
 ```
 
 ### Adding a visualizer

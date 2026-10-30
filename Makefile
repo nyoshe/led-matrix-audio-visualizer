@@ -1,5 +1,6 @@
 SKETCH := led-matrix-audio-visualizer
-FQBN   ?= esp32:esp32:esp32
+# ELEGOO ESP-WROOM-32 dev board = generic "ESP32 Dev Module", 4 MB flash, no PSRAM
+FQBN   ?= esp32:esp32:esp32:UploadSpeed=921600,CPUFreq=240,FlashSize=4M,PSRAM=disabled
 PORT   ?= /dev/ttyUSB0
 BAUD   ?= 115200
 BUILD  := build

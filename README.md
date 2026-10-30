@@ -133,5 +133,5 @@ The screen is cleared before `draw()` and shown afterwards. Draw the whole pictu
 - **Panel stays dark or shows garbage:** some Waveshare panels use an FM6126A driver. Uncomment `cfg.driver = HUB75_I2S_CFG::FM6126A;` in `src/core/Matrix.cpp`.
 - **Pixels shimmer:** try `cfg.clkphase = false;`.
 - **Brightness:** change `PANEL_BRIGHTNESS` in `src/config.h`.
-- **Spectrum Bars noise:** if silence still shows bars, raise `LOG_FLOOR_MARGIN_DB` in `src/config.h`. If the bars look too jumpy, raise `LOG_MIN_SPAN_DB`. Send `d` over serial to print the current levels while you tune.
+- **Decibel bands (`bandsDb`) noise:** if a visualizer using `bandsDb` shows bars in silence, raise `LOG_FLOOR_MARGIN_DB` in `src/config.h`. If the bars look too jumpy, raise `LOG_MIN_SPAN_DB`. Send `d` over serial to print the current levels while you tune.
 - **Sensitivity:** the gain adjusts itself. If silence still shows bars, raise the `50.0f` floor passed to `trackGain()` in `src/core/Audio.cpp`. You can also change the gain resistor on the Sound Detector.

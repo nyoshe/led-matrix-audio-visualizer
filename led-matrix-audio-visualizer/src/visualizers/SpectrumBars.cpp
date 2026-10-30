@@ -4,8 +4,8 @@
 // Each column gets its own hue, so the bars form a rainbow that slowly drifts
 // round the colour wheel (faster when the music is loud). Bars glow brighter
 // towards their tips, and tall bars burn towards white at the top. Bass hits
-// flash everything brighter, jolt the hue, wash the background in the
-// complementary colour and throw sparks above the tallest bars.
+// flash the bars brighter, jolt the hue and throw sparks above the tallest
+// bars.
 
 #include "../core/Visualizer.h"
 
@@ -29,7 +29,6 @@ class SpectrumBars : public Visualizer {
 
     // Normal frames sit at 55% brightness, leaving headroom for beat flashes.
     const float intensity = 0.55f + 0.45f * flash_;
-    if (flash_ > 0.1f) display.fillScreen(hsvColor(hue_ + 0.5f, 1.0f, flash_ * 0.2f));
 
     for (int x = 0; x < PANEL_WIDTH; x++) {
       float magnitude = audio.bands[x * NUM_BANDS / PANEL_WIDTH] * PANEL_HEIGHT;

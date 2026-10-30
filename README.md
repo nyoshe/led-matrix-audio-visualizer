@@ -71,7 +71,7 @@ The detector's five wires go to the top four pins of the left header plus the GN
 
 | # | Name | What it shows |
 |---|---|---|
-| 0 | Spectrum Bars | 64 rainbow frequency bars that glow toward their tips, with falling peak dots. Bass hits flash the display, shift the colours and throw sparks |
+| 0 | Spectrum Bars | 64 rainbow frequency bars that glow toward their tips, with falling peak dots. Bass hits flash the bars brighter, shift the colours and throw sparks |
 | 1 | Spectrogram | Scrolling waterfall: time right → left, bass at the bottom, loudness as heat colour |
 
 **Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels and frame rates, or `b` to print every band's frequency and level (handy for spotting interference). To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.

@@ -7,6 +7,7 @@
 // regardless of how loud the room is.
 struct AudioFrame {
   float bands[NUM_BANDS];         // 0..1 spectrum, log-spaced low -> high
+  float bandsDb[NUM_BANDS];       // 0..1 same bands on a decibel (log) scale
   float waveform[FFT_SAMPLES];    // -1..1 time domain, DC removed
   float level;                    // 0..1 overall loudness (RMS)
   float bass;                     // 0..1 average of the lowest bands

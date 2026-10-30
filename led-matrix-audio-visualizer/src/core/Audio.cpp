@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <arduinoFFT.h>
 
+#include "Color.h"
+
 namespace {
 
 float vReal[FFT_SAMPLES];
@@ -13,6 +15,10 @@ uint16_t bandStart[NUM_BANDS + 1];  // first FFT bin of each band
 float spectrumGain = 1.0f;          // tracks the loudest recent band
 float waveGain = 1.0f;              // tracks the largest recent sample
 AudioFrame frame;
+float bandDb[NUM_BANDS];             // raw dB of each band
+float noiseFloorDb[NUM_BANDS];       // learned noise level of each band
+bool noiseFloorReady = false;
+float spanDb = LOG_MIN_SPAN_DB;      // dB above the floor that maps to 1.0
 
 const uint32_t samplePeriodUs = 1000000UL / SAMPLE_RATE_HZ;
 
@@ -69,6 +75,27 @@ void buildWaveform() {
   frame.level = min(sqrtf(sumSq / FFT_SAMPLES) * 1.414f, 1.0f);
 }
 
+// Decibel bands: how far each band is above its own learned noise floor.
+void buildBandsDb() {
+  float loudest = 0;
+  float above[NUM_BANDS];
+  for (int i = 0; i < NUM_BANDS; i++) {
+    float& floorDb = noiseFloorDb[i];
+    if (!noiseFloorReady) floorDb = bandDb[i];
+    else floorDb += (bandDb[i] - floorDb) * (bandDb[i] < floorDb ? LOG_FLOOR_FALL : LOG_FLOOR_RISE);
+
+    above[i] = bandDb[i] - floorDb - LOG_FLOOR_MARGIN_DB;
+    loudest = max(loudest, above[i]);
+  }
+  noiseFloorReady = true;
+
+  // Full height tracks the loudest band: jump up, decay slowly.
+  spanDb = loudest > spanDb ? loudest : spanDb * 0.995f;
+  spanDb = constrain(spanDb, LOG_MIN_SPAN_DB, LOG_MAX_SPAN_DB);
+
+  for (int i = 0; i < NUM_BANDS; i++) frame.bandsDb[i] = clamp01(above[i] / spanDb);
+}
+
 void buildBands() {
   float loudest = 0;
   for (int i = 0; i < NUM_BANDS; i++) {
@@ -83,9 +110,12 @@ void buildBands() {
   }
 
   trackGain(spectrumGain, loudest, 50.0f);
+
   for (int i = 0; i < NUM_BANDS; i++) {
+    bandDb[i] = 20.0f * log10f(max(frame.bands[i], 1e-3f));
     frame.bands[i] = min(frame.bands[i] / spectrumGain, 1.0f);
   }
+  buildBandsDb();
 }
 
 // A beat is bass energy jumping well above its recent average.

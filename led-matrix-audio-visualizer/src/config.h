@@ -49,5 +49,14 @@ constexpr uint32_t SAMPLE_RATE_HZ = 16000;  // Nyquist = 8 kHz, bin = 62.5 Hz
 constexpr uint16_t FFT_MIN_BIN    = 2;      // skip DC and the lowest rumble
 constexpr int      NUM_BANDS      = 64;     // log-spaced bands in AudioFrame
 
+// Decibel scale (AudioFrame::bandsDb). Each band learns its own noise floor
+// (drops quickly, creeps up slowly), and 0..1 covers how far the band is above
+// that floor, up to the loudest band recently seen.
+constexpr float LOG_FLOOR_MARGIN_DB = 8.0f;    // ignore this much above the floor (hides hiss)
+constexpr float LOG_MIN_SPAN_DB     = 12.0f;   // full height is at least this far above the floor
+constexpr float LOG_MAX_SPAN_DB     = 40.0f;   // ...and at most this far
+constexpr float LOG_FLOOR_FALL      = 0.05f;   // per frame, how fast the floor drops to quieter input
+constexpr float LOG_FLOOR_RISE      = 0.002f;  // per frame, how fast it creeps up (~10 s)
+
 // ---- Visualizer switching ---------------------------------------------------
 constexpr uint32_t AUTO_CYCLE_MS = 0;  // switch visualizer every N ms; 0 = off

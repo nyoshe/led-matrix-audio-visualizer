@@ -32,7 +32,8 @@ class SpectrumBars : public Visualizer {
     if (flash_ > 0.1f) display.fillScreen(hsvColor(hue_ + 0.5f, 1.0f, flash_ * 0.2f));
 
     for (int x = 0; x < PANEL_WIDTH; x++) {
-      float target = audio.bands[x * NUM_BANDS / PANEL_WIDTH] * PANEL_HEIGHT;
+      // Decibel scale, so quiet detail is visible next to loud bass.
+      float target = audio.bandsDb[x * NUM_BANDS / PANEL_WIDTH] * PANEL_HEIGHT;
 
       // Fast attack, slower release.
       bar_[x] = target > bar_[x] ? target : bar_[x] * 0.85f + target * 0.15f;

@@ -118,6 +118,7 @@ REGISTER_VISUALIZER(Pulse, 30);  // the number sets its position in the rotation
 
 Each frame, `AudioFrame` gives you:
 - `bands[64]`: the spectrum, 0–1, log-spaced from bass to treble.
+- `bandsDb[64]`: the same bands on a decibel (log) scale, 0–1. It measures how far each band is above its own learned noise floor, so quiet detail shows and silence stays dark. The `LOG_*` settings in `config.h` control it.
 - `waveform[256]`: the raw signal, −1 to 1.
 - `level`: overall loudness, 0–1.
 - `bass` and `beat`: bass level, 0–1, and a flag that is true on the frame a bass hit lands.
@@ -132,4 +133,5 @@ The screen is cleared before `draw()` and shown afterwards. Draw the whole pictu
 - **Panel stays dark or shows garbage:** some Waveshare panels use an FM6126A driver. Uncomment `cfg.driver = HUB75_I2S_CFG::FM6126A;` in `src/core/Matrix.cpp`.
 - **Pixels shimmer:** try `cfg.clkphase = false;`.
 - **Brightness:** change `PANEL_BRIGHTNESS` in `src/config.h`.
+- **Spectrum Bars noise:** if silence still shows bars, raise `LOG_FLOOR_MARGIN_DB` in `src/config.h`. If the bars look too jumpy, raise `LOG_MIN_SPAN_DB`.
 - **Sensitivity:** the gain adjusts itself. If silence still shows bars, raise the `50.0f` floor passed to `trackGain()` in `src/core/Audio.cpp`. You can also change the gain resistor on the Sound Detector.

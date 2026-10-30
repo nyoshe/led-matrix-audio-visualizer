@@ -120,6 +120,7 @@ Each frame, `AudioFrame` gives you:
 - `bands[64]`: the spectrum, 0–1, log-spaced from bass to treble.
 - `waveform[256]`: the raw signal, −1 to 1.
 - `level`: overall loudness, 0–1.
+- `bass` and `beat`: bass level, 0–1, and a flag that is true on the frame a bass hit lands.
 - `envelope` and `gate`: the Sound Detector's own outputs.
 
 The levels adjust themselves to how loud the room is, so you don't need to scale them.

@@ -88,6 +88,23 @@ void buildBands() {
   }
 }
 
+// A beat is bass energy jumping well above its recent average.
+void detectBeat() {
+  constexpr int bassBands = 6;
+  constexpr uint32_t minFramesBetweenBeats = 6;
+  static float bassAverage = 0;
+  static uint32_t lastBeatFrame = 0;
+
+  float bass = 0;
+  for (int i = 0; i < bassBands; i++) bass += frame.bands[i];
+  frame.bass = bass / bassBands;
+
+  frame.beat = frame.bass > bassAverage * 1.4f && frame.bass > 0.35f &&
+               frame.frame - lastBeatFrame > minFramesBetweenBeats;
+  if (frame.beat) lastBeatFrame = frame.frame;
+  bassAverage = bassAverage * 0.95f + frame.bass * 0.05f;
+}
+
 }  // namespace
 
 void Audio::begin() {
@@ -107,8 +124,9 @@ const AudioFrame& Audio::capture() {
   fft.complexToMagnitude();
   buildBands();
 
+  frame.frame++;
+  detectBeat();
   frame.envelope = analogRead(Pins::ENVELOPE) / 4095.0f;
   frame.gate = digitalRead(Pins::GATE);
-  frame.frame++;
   return frame;
 }

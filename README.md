@@ -80,7 +80,7 @@ The detector's five wires go to the top four pins of the left header plus the GN
 
 Audio and drawing run independently, on separate CPU cores:
 
-- **Core 0, audio:** the ADC samples the Sound Detector at 20 kHz into memory via DMA, with no CPU involved. Every `AUDIO_HOP_SAMPLES` (128) new samples, a background task analyses the latest `FFT_SAMPLES` (256), about 156 times a second. Each window overlaps the previous one by half, so a fresh analysis is ready every 6.4 ms.
+- **Core 0, audio:** the ADC reads the Sound Detector at 80 kHz into memory via DMA, with no CPU involved. Every 4 readings (`ADC_OVERSAMPLE`) are averaged into one 20 kHz sample, which lowers ADC noise (about 4 dB measured here). Every `AUDIO_HOP_SAMPLES` (128) new samples, a background task analyses the latest `FFT_SAMPLES` (256), about 156 times a second. Each window overlaps the previous one by half, so a fresh analysis is ready every 6.4 ms. `d` prints the rates, timing and CPU load.
 - **Core 1, drawing:** `loop()` draws the active visualizer at a steady `RENDER_FPS` using the newest analysis. It never waits for audio. A beat that lands between two frames is held until the next frame, so none are missed.
 
 All of these settings are in `src/config.h`. Raising `RENDER_FPS` or the analysis rate doesn't affect the other.

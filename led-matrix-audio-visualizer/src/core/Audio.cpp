@@ -46,7 +46,9 @@ AudioFrame published;      // newest complete frame
 bool beatPending = false;  // a beat landed since the render loop last looked
 
 // Measured rates, for printStats().
-uint32_t rateWindowStartMs = 0, samplesInWindow = 0, analysesInWindow = 0;
+uint32_t rateWindowStartMs = 0, samplesInWindow = 0, rawSamplesInWindow = 0, analysesInWindow = 0;
+uint32_t busyUsInWindow = 0;  // time the audio task spent processing
+float measuredRawSampleRate = 0, measuredBusyPercent = 0;
 float measuredSampleRate = 0, measuredAnalysisRate = 0;
 uint32_t analysisUsSum = 0, analysisUsMax = 0;      // time spent analysing, this window
 float measuredAnalysisUsAvg = 0, measuredAnalysisUsMax = 0;
@@ -54,7 +56,7 @@ float measuredAnalysisUsAvg = 0, measuredAnalysisUsMax = 0;
 // ---- ADC --------------------------------------------------------------------
 
 constexpr int kAdcChannels = 2;  // AUDIO and ENVELOPE
-constexpr uint32_t kReadBytes = AUDIO_HOP_SAMPLES * kAdcChannels * SOC_ADC_DIGI_RESULT_BYTES;
+constexpr uint32_t kReadBytes = AUDIO_HOP_SAMPLES * ADC_OVERSAMPLE * kAdcChannels * SOC_ADC_DIGI_RESULT_BYTES;
 adc_continuous_handle_t adc = nullptr;
 adc_channel_t audioChannel, envelopeChannel;
 
@@ -80,7 +82,7 @@ void startAdc() {
   adc_continuous_config_t config = {};
   config.pattern_num = kAdcChannels;
   config.adc_pattern = pattern;
-  config.sample_freq_hz = SAMPLE_RATE_HZ * kAdcChannels;  // conversions/s across both pins
+  config.sample_freq_hz = SAMPLE_RATE_HZ * ADC_OVERSAMPLE * kAdcChannels;  // conversions/s, both pins
   config.conv_mode = ADC_CONV_SINGLE_UNIT_1;
   config.format = ADC_DIGI_OUTPUT_FORMAT_TYPE1;
   ESP_ERROR_CHECK(adc_continuous_config(adc, &config));
@@ -236,6 +238,9 @@ void measureRates() {
   uint32_t elapsed = millis() - rateWindowStartMs;
   if (elapsed >= 1000) {
     measuredSampleRate = samplesInWindow * 1000.0f / elapsed;
+    measuredRawSampleRate = rawSamplesInWindow * 1000.0f / elapsed;
+    measuredBusyPercent = busyUsInWindow / (elapsed * 10.0f);
+    rawSamplesInWindow = busyUsInWindow = 0;
     measuredAnalysisRate = analysesInWindow * 1000.0f / elapsed;
     measuredAnalysisUsAvg = (float)analysisUsSum / analysesInWindow;
     measuredAnalysisUsMax = analysisUsMax;
@@ -269,27 +274,28 @@ void analyse() {
 }
 
 // The ESP32's DMA ADC adds a fixed offset pattern that repeats every 16
-// samples (measured: one sample in 16 reads ~32 counts low), which shows up
-// as false tones at multiples of SAMPLE_RATE_HZ / 16. Learn the average offset
-// at each position in the cycle and subtract it. Real audio isn't locked to
-// the cycle, so it averages out and only the fixed pattern is learned.
+// samples at 20 kHz, i.e. every 0.8 ms (measured: one sample in 16 reads ~32
+// counts low), which shows up as false tones at multiples of 1250 Hz. It
+// survives oversampling, so it's corrected after averaging. Learn the average
+// offset at each position in the cycle and subtract it. Real audio isn't
+// locked to the cycle, so it averages out and only the fixed pattern is
+// learned.
 constexpr int kPatternPeriod = 16;
 constexpr float kPatternLearnRate = 0.0005f;  // per sample at that position (~1.6 s)
 float patternOffset[kPatternPeriod];
 float dcLevel = 2048;
 uint32_t sampleIndex = 0;
 
-float removeAdcPattern(uint16_t raw) {
-  float x = raw;
+float removeAdcPattern(float x) {
   float& offset = patternOffset[sampleIndex++ % kPatternPeriod];
   dcLevel += (x - dcLevel) * 0.001f;
   offset += ((x - dcLevel) - offset) * kPatternLearnRate;
   return x - offset;
 }
 
-void addAudioSample(uint16_t raw) {
+void addAudioSample(float sample) {
   samplesInWindow++;
-  hop[hopFill++] = removeAdcPattern(raw);
+  hop[hopFill++] = removeAdcPattern(sample);
   if (hopFill < AUDIO_HOP_SAMPLES) return;
 
   // Slide the window along by one hop and analyse it.
@@ -299,22 +305,36 @@ void addAudioSample(uint16_t raw) {
   analyse();
 }
 
+// Average every ADC_OVERSAMPLE raw readings into one audio sample.
+void addRawAudioSample(uint16_t raw) {
+  static float sum = 0;
+  static int count = 0;
+  rawSamplesInWindow++;
+  sum += raw;
+  if (++count < ADC_OVERSAMPLE) return;
+  addAudioSample(sum / ADC_OVERSAMPLE);
+  sum = 0;
+  count = 0;
+}
+
 void audioTask(void*) {
   static uint8_t buffer[kReadBytes];
   rateWindowStartMs = millis();
   while (true) {
     uint32_t length = 0;
     if (adc_continuous_read(adc, buffer, kReadBytes, &length, 1000) != ESP_OK) continue;
+    uint32_t startUs = micros();
 
     for (uint32_t i = 0; i + SOC_ADC_DIGI_RESULT_BYTES <= length; i += SOC_ADC_DIGI_RESULT_BYTES) {
       auto* result = reinterpret_cast<adc_digi_output_data_t*>(&buffer[i]);
       if (result->type1.channel == audioChannel) {
-        addAudioSample(result->type1.data);
+        addRawAudioSample(result->type1.data);
       } else if (result->type1.channel == envelopeChannel) {
         envelopeSum += result->type1.data;
         envelopeCount++;
       }
     }
+    busyUsInWindow += micros() - startUs;
   }
 }
 
@@ -358,6 +378,8 @@ void Audio::printStats() {
                 measuredAnalysisRate, spectrumGain, 20.0f * log10f(spectrumGain));
   Serial.printf("analysis takes avg %.0f us, max %.0f us (budget %.0f us per hop)\n", measuredAnalysisUsAvg,
                 measuredAnalysisUsMax, AUDIO_HOP_SAMPLES * 1e6f / SAMPLE_RATE_HZ);
+  Serial.printf("ADC %.0f raw samples/s (%ux oversampling) | audio task busy %.0f%% of core 0\n",
+                measuredRawSampleRate, ADC_OVERSAMPLE, measuredBusyPercent);
   float third[3] = {};
   for (int i = 0; i < NUM_BANDS; i++) third[i * 3 / NUM_BANDS] += published.bands[i] * 3 / NUM_BANDS;
   Serial.printf("bands: median %.2f  max %.2f | low/mid/high avg %.2f %.2f %.2f | level %.2f\n",

@@ -18,8 +18,7 @@ class Oscilloscope : public Visualizer {
 
   void draw(const AudioFrame& audio, Display& display) override {
     if (audio.beat) flash_ = 1.0f;
-    offset_ += 0.003f + audio.level * 0.01f;
-    offset_ -= (int)offset_;
+    offset_ = wrap01(offset_ + 0.003f + audio.level * 0.01f);
 
     drawAxis(display);
 

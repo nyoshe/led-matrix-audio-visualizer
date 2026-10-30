@@ -2,6 +2,7 @@
 
 // Colour helpers shared by visualizers. All return RGB565.
 
+#include <math.h>
 #include <stdint.h>
 
 inline uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
@@ -9,6 +10,30 @@ inline uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 inline float clamp01(float t) { return t < 0 ? 0 : (t > 1 ? 1 : t); }
+inline int clampInt(int n, int lo, int hi) { return n < lo ? lo : (n > hi ? hi : n); }
+
+// Wraps t into 0..1, correctly for negative input too (unlike `t - (int)t`).
+inline float wrap01(float t) { return t - floorf(t); }
+
+// Moves `state` towards `target`: an asymmetric EWMA with a different rate
+// rising (attack) than falling (release).
+inline void smoothTowards(float& state, float target, float attack, float release) {
+  state += (target > state ? attack : release) * (target - state);
+}
+
+// Scales an RGB565 colour's brightness and blends it towards white.
+inline uint16_t tint565(uint16_t color, float brightness, float white = 0.0f) {
+  float r = ((color >> 11) & 0x1F) / 31.0f;
+  float g = ((color >> 5) & 0x3F) / 63.0f;
+  float b = (color & 0x1F) / 31.0f;
+  r += (1.0f - r) * white;
+  g += (1.0f - g) * white;
+  b += (1.0f - b) * white;
+  r *= brightness;
+  g *= brightness;
+  b *= brightness;
+  return rgb565((uint8_t)(clamp01(r) * 255), (uint8_t)(clamp01(g) * 255), (uint8_t)(clamp01(b) * 255));
+}
 
 // Green -> yellow -> red, like a VU meter.
 inline uint16_t levelColor(float t) {

@@ -101,7 +101,7 @@ void Palettes::select(size_t index) {
 }
 
 uint16_t paletteColor(float t, float brightness, float white) {
-  t -= floorf(t);
+  t = wrap01(t);
   const uint8_t* c = lut[(int)(t * 256) & 255];
   brightness = clamp01(brightness);
   white = clamp01(white);

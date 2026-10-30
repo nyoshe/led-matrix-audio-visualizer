@@ -40,9 +40,7 @@ class VuMeter : public Visualizer {
   void drawGauge(Display& display, Channel& ch, float input, bool beat, int xMin, int xMax) {
     input = clamp01(input);
 
-    // Fast attack, slow release: hits register immediately, decay eases off.
-    float alpha = input > ch.smooth ? kAttackAlpha : kReleaseAlpha;
-    ch.smooth += alpha * (input - ch.smooth);
+    smoothTowards(ch.smooth, input, kAttackAlpha, kReleaseAlpha);
 
     // Spring-damped needle chasing the smoothed value: light underdamping
     // gives a small overshoot/wobble before it settles, like real inertia.

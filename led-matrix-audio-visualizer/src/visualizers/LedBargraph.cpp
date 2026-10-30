@@ -20,11 +20,7 @@ class LedBargraph : public Visualizer {
       float sum = 0;
       for (int k = 0; k < kBandsPerBar; k++) sum += audio.bands[b * kBandsPerBar + k];
       float target = (sum / kBandsPerBar) * kSegments;  // 0..kSegments, continuous
-
-      // Fast attack / slow release so the column jumps up on a hit but
-      // drifts back down smoothly, same idea as Spectrum Bars.
-      float alpha = target > bar_[b] ? kAttackAlpha : kReleaseAlpha;
-      bar_[b] += alpha * (target - bar_[b]);
+      smoothTowards(bar_[b], target, kAttackAlpha, kReleaseAlpha);
 
       // Peak never drops below the current bar.
       if (bar_[b] >= peak_[b]) peak_[b] = bar_[b];
@@ -32,8 +28,8 @@ class LedBargraph : public Visualizer {
 
       // Quantise the continuous, already-smoothed values to a whole lamp
       // count now -- smoothing the lamp count itself would look stepped.
-      int lit = clampSeg((int)(bar_[b] + 0.5f));
-      int peakCount = clampSeg((int)(peak_[b] + 0.5f));
+      int lit = clampInt((int)(bar_[b] + 0.5f), 0, kSegments);
+      int peakCount = clampInt((int)(peak_[b] + 0.5f), 0, kSegments);
 
       const int x0 = b * kBarPitch;
       for (int s = 0; s < kSegments; s++) {
@@ -42,11 +38,11 @@ class LedBargraph : public Visualizer {
 
         uint16_t color;
         if (peakCount > 0 && s == peakCount - 1) {
-          color = tint(base, 1.0f, kPeakWhite + (1.0f - kPeakWhite) * flash_);
+          color = tint565(base, 1.0f, kPeakWhite + (1.0f - kPeakWhite) * flash_);
         } else if (s < lit) {
-          color = tint(base, 1.0f, 0.0f);  // lit lamp, full brightness
+          color = tint565(base, 1.0f);  // lit lamp, full brightness
         } else {
-          color = tint(base, kGhostBrightness, 0.0f);  // unlit lamp, ghost dim
+          color = tint565(base, kGhostBrightness);  // unlit lamp, ghost dim
         }
 
         const int y0 = PANEL_HEIGHT - kSegPitch * (s + 1);
@@ -76,23 +72,6 @@ class LedBargraph : public Visualizer {
   static constexpr float kGhostBrightness = 0.08f;  // unlit lamps, as a fraction of full colour
   static constexpr float kPeakWhite = 0.35f;     // peak lamp's white tint at rest (more on a beat)
   static constexpr float kFlashDecay = 0.85f;    // how fast the beat flash fades
-
-  // Clamp a lamp count to the segment stack's range.
-  static int clampSeg(int n) { return n < 0 ? 0 : (n > kSegments ? kSegments : n); }
-
-  // Scale an RGB565 colour's brightness and blend it towards white.
-  static uint16_t tint(uint16_t color, float brightness, float whiteMix) {
-    float r = ((color >> 11) & 0x1F) / 31.0f;
-    float g = ((color >> 5) & 0x3F) / 63.0f;
-    float b = (color & 0x1F) / 31.0f;
-    r += (1.0f - r) * whiteMix;
-    g += (1.0f - g) * whiteMix;
-    b += (1.0f - b) * whiteMix;
-    r *= brightness;
-    g *= brightness;
-    b *= brightness;
-    return rgb565((uint8_t)(clamp01(r) * 255), (uint8_t)(clamp01(g) * 255), (uint8_t)(clamp01(b) * 255));
-  }
 
   float bar_[kBars] = {};
   float peak_[kBars] = {};

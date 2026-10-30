@@ -19,8 +19,7 @@ class SpectrumBars : public Visualizer {
       flash_ = 1.0f;
       offset_ += 0.12f;
     }
-    offset_ += 0.002f + audio.level * 0.01f;
-    offset_ -= (int)offset_;
+    offset_ = wrap01(offset_ + 0.002f + audio.level * 0.01f);
 
     // Normal frames sit at 55% brightness, leaving headroom for beat flashes.
     const float intensity = 0.55f + 0.45f * flash_;
@@ -30,8 +29,7 @@ class SpectrumBars : public Visualizer {
 
       // Smooth the magnitude over time with an asymmetric EWMA: rise fast so
       // hits land immediately, fall slowly so bars don't flicker.
-      float alpha = magnitude > bar_[x] ? kAttackAlpha : kReleaseAlpha;
-      bar_[x] += alpha * (magnitude - bar_[x]);
+      smoothTowards(bar_[x], magnitude, kAttackAlpha, kReleaseAlpha);
 
       // Peak dots follow the raw magnitude, so they snap to every hit even
       // though the bars are smoothed. Never let them sit below the bar.

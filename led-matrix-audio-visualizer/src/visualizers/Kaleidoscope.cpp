@@ -31,9 +31,7 @@ class Kaleidoscope : public Visualizer {
     // Smooth each band over time with an asymmetric EWMA: rise fast so
     // wedges snap bright on a hit, fall slowly so they don't flicker.
     for (int b = 0; b < NUM_BANDS; b++) {
-      float mag = audio.bands[b];
-      float alpha = mag > bandSmooth_[b] ? kAttackAlpha : kReleaseAlpha;
-      bandSmooth_[b] += alpha * (mag - bandSmooth_[b]);
+      smoothTowards(bandSmooth_[b], audio.bands[b], kAttackAlpha, kReleaseAlpha);
     }
 
     const float intensity = 0.6f + 0.4f * flash_;
@@ -81,8 +79,6 @@ class Kaleidoscope : public Visualizer {
   static constexpr float kBeatPaletteJolt = 0.05f;   // palette jump on a beat
   static constexpr float kPaletteDrift = 0.0006f;    // slow constant palette scroll
   static constexpr float kDistSpread = 0.35f;        // how far the palette shifts rim->pivot
-
-  static float wrap01(float t) { return t - floorf(t); }
 
   // Purely geometric, so it's filled once here and never changes.
   void computeTable() {

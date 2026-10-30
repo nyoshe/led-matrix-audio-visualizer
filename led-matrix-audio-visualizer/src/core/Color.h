@@ -30,20 +30,28 @@ inline uint16_t heatColor(float t) {
   return rgb565(255, 255, (uint8_t)(t * 255));
 }
 
-// Hue in 0..1 around the colour wheel, full saturation.
-inline uint16_t hueColor(float h, float brightness = 1.0f) {
+// HSV with every component in 0..1. Hue wraps, so any value works.
+inline uint16_t hsvColor(float h, float s, float v) {
   h = (h - (int)h) * 6;
   if (h < 0) h += 6;
   float f = h - (int)h;
-  uint8_t v = (uint8_t)(clamp01(brightness) * 255);
-  uint8_t q = (uint8_t)(v * (1 - f));
-  uint8_t t = (uint8_t)(v * f);
+  s = clamp01(s);
+  float val = clamp01(v) * 255;
+  uint8_t V = (uint8_t)val;
+  uint8_t p = (uint8_t)(val * (1 - s));
+  uint8_t q = (uint8_t)(val * (1 - s * f));
+  uint8_t t = (uint8_t)(val * (1 - s * (1 - f)));
   switch ((int)h) {
-    case 0: return rgb565(v, t, 0);
-    case 1: return rgb565(q, v, 0);
-    case 2: return rgb565(0, v, t);
-    case 3: return rgb565(0, q, v);
-    case 4: return rgb565(t, 0, v);
-    default: return rgb565(v, 0, q);
+    case 0: return rgb565(V, t, p);
+    case 1: return rgb565(q, V, p);
+    case 2: return rgb565(p, V, t);
+    case 3: return rgb565(p, q, V);
+    case 4: return rgb565(t, p, V);
+    default: return rgb565(V, p, q);
   }
+}
+
+// Hue in 0..1 around the colour wheel, full saturation.
+inline uint16_t hueColor(float h, float brightness = 1.0f) {
+  return hsvColor(h, 1.0f, brightness);
 }

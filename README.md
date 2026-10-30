@@ -76,7 +76,7 @@ The detector's five wires go to the top four pins of the left header plus the GN
 | 2 | Oscilloscope | The raw waveform as a glowing line with fading trails, held steady on a rising zero-crossing. Colour drifts with loudness, and beats flash it brighter |
 | 3 | Fire | Demoscene-style flames fed from the bottom by each column's band. Loud bands burn tall, and beats send a flare across the base |
 
-**Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels and frame rates, or `b` to print every band's frequency and level (handy for spotting interference). To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
+**Switching:** press the board's **BOOT** button to go to the next visualizer. Over serial (`make monitor`), send `n` for next, `p` for previous, `l` to list them, or `0`–`9` to pick one. Send `d` to print audio levels and frame rates, or `b` to print every band's frequency and level plus the calibrated noise profile (handy for spotting interference). Send `c` to calibrate the noise, or `x` to clear the calibration (see Tuning). To rotate through them automatically, set `AUTO_CYCLE_MS` in `src/config.h`.
 
 ### How audio and drawing fit together
 
@@ -143,6 +143,7 @@ The screen is cleared before `draw()` and shown afterwards. Draw the whole pictu
 
 ## Tuning
 
+- **Noise calibration:** during a quiet moment, without touching the mic, send `c` over serial. Covering the mic by hand tends to add noise rather than remove it. For 3 seconds the board measures the noise in every FFT bin, including ADC hiss, low rumble and steady interference tones such as the matrix's 625 Hz whine. It keeps the quietest 0.1 s stretch of each bin, so a bump or a brief sound during calibration doesn't spoil it. From then on, `NOISE_OVERSUBTRACT` (1.5) times that noise is subtracted from each bin before the bars are drawn, so silence stays dark. The result is saved to flash and reloaded on boot. Recalibrate after changing the sample rate, `ADC_OVERSAMPLE` or `FFT_SAMPLES`, since an old calibration is ignored if they don't match. Raise `NOISE_OVERSUBTRACT` if silence still flickers, or lower it if quiet sounds disappear. If the bars go missing after a calibration, send `x` to clear it.
 - **Panel stays dark or shows garbage:** some Waveshare panels use an FM6126A driver. Uncomment `cfg.driver = HUB75_I2S_CFG::FM6126A;` in `src/core/Matrix.cpp`.
 - **Pixels shimmer:** try `cfg.clkphase = false;`.
 - **Brightness:** change `PANEL_BRIGHTNESS` in `src/config.h`.

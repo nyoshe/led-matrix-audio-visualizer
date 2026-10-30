@@ -68,6 +68,11 @@ constexpr float ANALYSIS_RATE_HZ = (float)SAMPLE_RATE_HZ / AUDIO_HOP_SAMPLES;
 // thirds of the display on average; 3 makes the treble about twice as tall.
 constexpr float TREBLE_TILT_DB_PER_OCTAVE = 2.0f;
 
+// Noise calibration (serial `c`, with the mic covered): this many times the
+// measured noise is subtracted from each FFT bin. Above 1 also removes most
+// of the frame-to-frame flicker of the noise, not just its average.
+constexpr float NOISE_OVERSUBTRACT = 1.5f;
+
 // Decibel scale (AudioFrame::bandsDb). Each band learns its own noise floor
 // (drops quickly, creeps up slowly), and 0..1 covers how far the band is above
 // that floor, up to the loudest band recently seen.

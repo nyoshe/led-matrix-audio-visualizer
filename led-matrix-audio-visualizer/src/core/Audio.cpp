@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <arduinoFFT.h>
+#include <Preferences.h>
 #include <esp_adc/adc_continuous.h>
 
 #include <algorithm>
@@ -38,6 +39,59 @@ float spanDb = LOG_MIN_SPAN_DB;     // dB above the floor that maps to 1.0
 
 // Per-analysis-frame rates, derived from time constants in begin().
 float agcAttack, agcRelease, bassAverageDecay, floorFall, floorRise;
+
+// ---- Noise calibration -----------------------------------------------------
+// The quiet-room magnitude of every FFT bin (ADC noise plus steady hum and
+// interference tones), measured on request and saved to flash.
+// NOISE_OVERSUBTRACT times it is subtracted from each bin before the bins
+// become bands, so silence draws (almost) nothing.
+//
+// Bumps and handling noise during calibration would inflate a plain average,
+// so each bin is averaged over short blocks and the quietest block is kept.
+
+constexpr int kBins = FFT_SAMPLES / 2;
+constexpr uint32_t kCalibrationBlock = 16;  // frames per block (~0.1 s)
+float noiseMag[kBins];                      // 0 until calibrated
+float blockSum[kBins];
+float quietestBlock[kBins];
+uint32_t blockFrames = 0;
+uint32_t calibrationFrames = 0;             // collected so far
+uint32_t calibrationTarget = 0;             // frames wanted
+volatile bool calibrating = false;
+
+void saveCalibration() {
+  Preferences prefs;
+  prefs.begin("audio");
+  prefs.putUInt("noiseRate", SAMPLE_RATE_HZ * ADC_OVERSAMPLE);
+  prefs.putBytes("noiseMag", noiseMag, sizeof(noiseMag));
+  prefs.end();
+}
+
+void collectCalibration() {
+  for (int b = 0; b < kBins; b++) blockSum[b] += vReal[b];
+  if (++blockFrames == kCalibrationBlock) {
+    for (int b = 0; b < kBins; b++) {
+      quietestBlock[b] = min(quietestBlock[b], blockSum[b] / kCalibrationBlock);
+      blockSum[b] = 0;
+    }
+    blockFrames = 0;
+  }
+  if (++calibrationFrames < calibrationTarget) return;
+  memcpy(noiseMag, quietestBlock, sizeof(noiseMag));
+  calibrating = false;
+  saveCalibration();
+}
+
+// Loads a saved calibration, if it was made with the current FFT and rates.
+void loadCalibration() {
+  Preferences prefs;
+  prefs.begin("audio", true);
+  if (prefs.getUInt("noiseRate", 0) == SAMPLE_RATE_HZ * ADC_OVERSAMPLE &&
+      prefs.getBytesLength("noiseMag") == sizeof(noiseMag)) {
+    prefs.getBytes("noiseMag", noiseMag, sizeof(noiseMag));
+  }
+  prefs.end();
+}
 
 // ---- Shared with the render loop --------------------------------------------
 
@@ -190,15 +244,17 @@ void buildBandsDb() {
 void buildBands() {
   float loudest = 0;
   for (int i = 0; i < NUM_BANDS; i++) {
-    float sum = 0;
+    float sum = 0, cleanSum = 0;
     int n = 0;
     for (int b = bandStart[i]; b < bandStart[i + 1] && b < FFT_SAMPLES / 2; b++) {
       sum += vReal[b];
+      cleanSum += max(vReal[b] - noiseMag[b] * NOISE_OVERSUBTRACT, 0.0f);
       n++;
     }
+    // bandsDb learns its own noise floor, so it uses the uncorrected level.
     float magnitude = n ? sum / n : 0;
-    bandDb[i] = 20.0f * log10f(max(magnitude, 1e-3f));  // unweighted, for bandsDb
-    working.bands[i] = magnitude * bandWeight[i];
+    bandDb[i] = 20.0f * log10f(max(magnitude, 1e-3f));
+    working.bands[i] = (n ? cleanSum / n : 0) * bandWeight[i];
     loudest = max(loudest, working.bands[i]);
   }
 
@@ -258,6 +314,7 @@ void analyse() {
   fft.windowing(FFTWindow::Hamming, FFTDirection::Forward);
   fft.compute(FFTDirection::Forward);
   fft.complexToMagnitude();
+  if (calibrating) collectCalibration();
   buildBands();
 
   working.frame++;
@@ -349,6 +406,7 @@ void Audio::begin() {
   bassAverageDecay = decayPerFrame(0.4f);
   floorFall = 1 - decayPerFrame(LOG_FLOOR_FALL_S);
   floorRise = 1 - decayPerFrame(LOG_FLOOR_RISE_S);
+  loadCalibration();
 
   startAdc();
   // Core 0, so it never competes with the render loop on core 1.
@@ -394,5 +452,44 @@ void Audio::printBands() {
   for (int i = 0; i < NUM_BANDS; i++) {
     float hz = bandStart[i] * (float)SAMPLE_RATE_HZ / FFT_SAMPLES;
     Serial.printf("%2d %5.0f Hz %5.1f dB  floor %5.1f\n", i, hz, bandDb[i], noiseFloorDb[i]);
+  }
+}
+
+void Audio::calibrateNoise(float seconds) {
+  memset(blockSum, 0, sizeof(blockSum));
+  for (int b = 0; b < kBins; b++) quietestBlock[b] = INFINITY;
+  blockFrames = calibrationFrames = 0;
+  // At least one full block, so every bin gets a value.
+  calibrationTarget = max((uint32_t)(seconds * ANALYSIS_RATE_HZ), kCalibrationBlock);
+  calibrating = true;
+}
+
+void Audio::clearNoiseCalibration() {
+  memset(noiseMag, 0, sizeof(noiseMag));
+  Preferences prefs;
+  prefs.begin("audio");
+  prefs.remove("noiseMag");
+  prefs.remove("noiseRate");
+  prefs.end();
+}
+
+bool Audio::isCalibrating() { return calibrating; }
+
+void Audio::printNoiseProfile() {
+  // Median and the five noisiest bins, so steady tones are easy to spot.
+  float sorted[kBins];
+  memcpy(sorted, noiseMag, sizeof(sorted));
+  std::sort(sorted, sorted + kBins);
+  Serial.printf("noise profile: median bin %.1f (%.1f dB)\n", sorted[kBins / 2],
+                20.0f * log10f(max(sorted[kBins / 2], 1e-3f)));
+  bool used[kBins] = {};
+  for (int k = 0; k < 5; k++) {
+    int loudest = -1;
+    for (int b = FFT_MIN_BIN; b < kBins; b++) {
+      if (!used[b] && (loudest < 0 || noiseMag[b] > noiseMag[loudest])) loudest = b;
+    }
+    used[loudest] = true;
+    Serial.printf("  bin %3d %5.0f Hz: %.1f dB\n", loudest, loudest * (float)SAMPLE_RATE_HZ / FFT_SAMPLES,
+                  20.0f * log10f(max(noiseMag[loudest], 1e-3f)));
   }
 }

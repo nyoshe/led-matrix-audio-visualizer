@@ -10,7 +10,8 @@
 // Switching visualizers:
 //   - press the board's BOOT button for the next one
 //   - over serial (115200): n = next, p = previous, l = list, 0-9 = select,
-//     d = print audio levels and frame rates, b = print every band (for tuning)
+//     d = print audio levels and frame rates, b = print every band (for tuning),
+//     c = calibrate noise (keep it quiet; takes 3 s), x = clear the calibration
 
 #include "src/config.h"
 #include "src/core/Audio.h"
@@ -22,6 +23,7 @@ size_t current = 0;
 uint32_t lastSwitchMs = 0;
 AudioFrame audio;           // newest frame from the audio task
 float measuredRenderFps = 0;
+bool calibrationReported = true;
 
 void selectVisualizer(size_t index) {
   size_t n = Visualizers::count();
@@ -59,6 +61,14 @@ void handleSerial() {
       Audio::printStats();
     } else if (c == 'b') {
       Audio::printBands();
+      Audio::printNoiseProfile();
+    } else if (c == 'c') {
+      Serial.println("Calibrating noise for 3 s, keep it quiet and don't touch the mic...");
+      Audio::calibrateNoise(3.0f);
+      calibrationReported = false;
+    } else if (c == 'x') {
+      Audio::clearNoiseCalibration();
+      Serial.println("Noise calibration cleared.");
     } else if (c >= '0' && c <= '9' && (size_t)(c - '0') < Visualizers::count()) selectVisualizer(c - '0');
   }
 }
@@ -95,6 +105,11 @@ void loop() {
   handleButton();
   handleSerial();
   if (AUTO_CYCLE_MS && millis() - lastSwitchMs >= AUTO_CYCLE_MS) selectVisualizer(current + 1);
+  if (!calibrationReported && !Audio::isCalibrating()) {
+    calibrationReported = true;
+    Serial.println("Noise calibration done and saved.");
+    Audio::printNoiseProfile();
+  }
 
   Audio::latest(audio);
   display->fillScreen(0);

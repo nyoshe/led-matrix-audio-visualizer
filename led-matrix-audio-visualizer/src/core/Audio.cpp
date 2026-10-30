@@ -56,6 +56,11 @@ uint32_t calibrationFrames = 0;             // collected so far
 uint32_t calibrationTarget = 0;             // frames wanted
 volatile bool calibrating = false;
 
+// Calibration is started/cleared from core 1 (the serial handler) and
+// accumulated from core 0 (the audio task); noiseMag is also read every
+// frame in buildBands(). This lock guards all of it.
+portMUX_TYPE calibLock = portMUX_INITIALIZER_UNLOCKED;
+
 void saveCalibration() {
   Preferences prefs;
   prefs.begin("audio");
@@ -65,6 +70,8 @@ void saveCalibration() {
 }
 
 void collectCalibration() {
+  bool done = false;
+  portENTER_CRITICAL(&calibLock);
   for (int b = 0; b < kBins; b++) blockSum[b] += vReal[b];
   if (++blockFrames == kCalibrationBlock) {
     for (int b = 0; b < kBins; b++) {
@@ -73,10 +80,13 @@ void collectCalibration() {
     }
     blockFrames = 0;
   }
-  if (++calibrationFrames < calibrationTarget) return;
-  memcpy(noiseMag, quietestBlock, sizeof(noiseMag));
-  calibrating = false;
-  saveCalibration();
+  if (++calibrationFrames >= calibrationTarget) {
+    memcpy(noiseMag, quietestBlock, sizeof(noiseMag));
+    calibrating = false;
+    done = true;
+  }
+  portEXIT_CRITICAL(&calibLock);
+  if (done) saveCalibration();  // flash I/O; never do this while locked
 }
 
 // Loads a saved calibration, if it was made with the current FFT and rates.
@@ -162,16 +172,16 @@ void setupBands() {
 }
 
 // Works in dB so recovering from a 20 dB spike takes the same time at any
-// volume. Never follows below `floor`, so silence isn't amplified into noise.
+// volume. Never follows below `minLevel`, so silence isn't amplified into noise.
 struct GainFollower {
-  float floor;
+  float minLevel;
   float levelDb;
 
-  explicit GainFollower(float floor) : floor(floor), levelDb(20.0f * log10f(floor)) {}
+  explicit GainFollower(float minLevel) : minLevel(minLevel), levelDb(20.0f * log10f(minLevel)) {}
 
   // Returns the gain that puts the followed level at AGC_HEADROOM.
   float update(float level) {
-    float db = 20.0f * log10f(max(level, floor));
+    float db = 20.0f * log10f(max(level, minLevel));
     levelDb += (db - levelDb) * (db > levelDb ? agcAttack : agcRelease);
     return powf(10.0f, levelDb / 20.0f) / AGC_HEADROOM;
   }
@@ -230,13 +240,19 @@ void buildBandsDb() {
 }
 
 void buildBands() {
+  // Snapshot under the lock once, rather than locking every lookup below.
+  float noiseSnapshot[kBins];
+  portENTER_CRITICAL(&calibLock);
+  memcpy(noiseSnapshot, noiseMag, sizeof(noiseSnapshot));
+  portEXIT_CRITICAL(&calibLock);
+
   float loudest = 0;
   for (int i = 0; i < NUM_BANDS; i++) {
     float sum = 0, cleanSum = 0;
     int n = 0;
     for (int b = bandStart[i]; b < bandStart[i + 1] && b < FFT_SAMPLES / 2; b++) {
       sum += vReal[b];
-      cleanSum += max(vReal[b] - noiseMag[b] * NOISE_OVERSUBTRACT, 0.0f);
+      cleanSum += max(vReal[b] - noiseSnapshot[b] * NOISE_OVERSUBTRACT, 0.0f);
       n++;
     }
     // bandsDb learns its own noise floor, so it uses the uncorrected level.
@@ -434,16 +450,21 @@ void Audio::printBands() {
 }
 
 void Audio::calibrateNoise(float seconds) {
+  // At least one full block, so every bin gets a value.
+  uint32_t target = max((uint32_t)(seconds * ANALYSIS_RATE_HZ), kCalibrationBlock);
+  portENTER_CRITICAL(&calibLock);
   memset(blockSum, 0, sizeof(blockSum));
   for (int b = 0; b < kBins; b++) quietestBlock[b] = INFINITY;
   blockFrames = calibrationFrames = 0;
-  // At least one full block, so every bin gets a value.
-  calibrationTarget = max((uint32_t)(seconds * ANALYSIS_RATE_HZ), kCalibrationBlock);
+  calibrationTarget = target;
   calibrating = true;
+  portEXIT_CRITICAL(&calibLock);
 }
 
 void Audio::clearNoiseCalibration() {
+  portENTER_CRITICAL(&calibLock);
   memset(noiseMag, 0, sizeof(noiseMag));
+  portEXIT_CRITICAL(&calibLock);
   Preferences prefs;
   prefs.begin("audio");
   prefs.remove("noiseMag");

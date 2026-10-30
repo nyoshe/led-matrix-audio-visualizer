@@ -237,9 +237,28 @@ void analyse() {
   measureRates();
 }
 
+// The ESP32's DMA ADC adds a fixed offset pattern that repeats every 16
+// samples (measured: one sample in 16 reads ~32 counts low), which shows up
+// as false tones at multiples of SAMPLE_RATE_HZ / 16. Learn the average offset
+// at each position in the cycle and subtract it. Real audio isn't locked to
+// the cycle, so it averages out and only the fixed pattern is learned.
+constexpr int kPatternPeriod = 16;
+constexpr float kPatternLearnRate = 0.0005f;  // per sample at that position (~1.6 s)
+float patternOffset[kPatternPeriod];
+float dcLevel = 2048;
+uint32_t sampleIndex = 0;
+
+float removeAdcPattern(uint16_t raw) {
+  float x = raw;
+  float& offset = patternOffset[sampleIndex++ % kPatternPeriod];
+  dcLevel += (x - dcLevel) * 0.001f;
+  offset += ((x - dcLevel) - offset) * kPatternLearnRate;
+  return x - offset;
+}
+
 void addAudioSample(uint16_t raw) {
   samplesInWindow++;
-  hop[hopFill++] = raw;
+  hop[hopFill++] = removeAdcPattern(raw);
   if (hopFill < AUDIO_HOP_SAMPLES) return;
 
   // Slide the window along by one hop and analyse it.

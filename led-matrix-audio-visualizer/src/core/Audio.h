@@ -13,4 +13,6 @@ void begin();
 void latest(AudioFrame& out);
 // Prints audio rates, decibel levels and bar heights to Serial, for tuning.
 void printStats();
+// Prints every band's frequency and level to Serial, for finding noise.
+void printBands();
 }  // namespace Audio

@@ -306,3 +306,11 @@ void Audio::printStats() {
                 aboveFloor[NUM_BANDS / 2], aboveFloor[NUM_BANDS - 1], spanDb,
                 height[NUM_BANDS / 2], height[NUM_BANDS - 1], published.level);
 }
+
+void Audio::printBands() {
+  // Reads the audio task's state without locking; fine for a rough printout.
+  for (int i = 0; i < NUM_BANDS; i++) {
+    float hz = bandStart[i] * (float)SAMPLE_RATE_HZ / FFT_SAMPLES;
+    Serial.printf("%2d %5.0f Hz %5.1f dB  floor %5.1f\n", i, hz, bandDb[i], noiseFloorDb[i]);
+  }
+}

@@ -10,7 +10,7 @@
 // Switching visualizers:
 //   - press the board's BOOT button for the next one
 //   - over serial (115200): n = next, p = previous, l = list, 0-9 = select,
-//     d = print audio levels and frame rates (for tuning)
+//     d = print audio levels and frame rates, b = print every band (for tuning)
 
 #include "src/config.h"
 #include "src/core/Audio.h"
@@ -57,6 +57,8 @@ void handleSerial() {
     else if (c == 'd') {
       Serial.printf("render %.1f fps\n", measuredRenderFps);
       Audio::printStats();
+    } else if (c == 'b') {
+      Audio::printBands();
     } else if (c >= '0' && c <= '9' && (size_t)(c - '0') < Visualizers::count()) selectVisualizer(c - '0');
   }
 }
